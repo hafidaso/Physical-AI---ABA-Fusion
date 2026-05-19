@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "author": "Hafida",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-esp32-devkit-v1",
+      "id": "esp",
+      "top": 62.3,
+      "left": 33.4,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led1",
+      "top": -90,
+      "left": 195.8,
+      "attrs": { "color": "red" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": 52.8,
+      "left": 277.85,
+      "rotate": 90,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led2",
+      "top": -90,
+      "left": 320,
+      "attrs": { "color": "green" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r2",
+      "top": 52.8,
+      "left": 402,
+      "rotate": 90,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn1",
+      "top": 236.6,
+      "left": -115.2,
+      "attrs": { "color": "green" }
+    }
+  ],
+  "connections": [
+    [ "esp:TX0", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX0", "$serialMonitor:TX", "", [] ],
+
+    [ "led1:A", "r1:1", "green", [ "h26.37", "v80.64" ] ],
+    [ "r1:2", "esp:D2", "green", [ "h-0.78", "v18.59" ] ],
+    [ "led1:C", "esp:GND.1", "black", [ "v0" ] ],
+
+    [ "led2:A", "r2:1", "green", [ "h26.37", "v80.64" ] ],
+    [ "r2:2", "esp:D4", "green", [ "h-0.78", "v18.59" ] ],
+    [ "led2:C", "esp:GND.1", "black", [ "v0" ] ],
+
+    [ "btn1:1.r", "esp:D12", "green", [ "h31.56", "v51.07" ] ],
+    [ "btn1:2.l", "esp:GND.2", "black", [ "h-26.1", "v50.67" ] ]
+  ],
+  "dependencies": {}
+}
