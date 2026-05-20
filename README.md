@@ -15,6 +15,8 @@ The curriculum is organized by days/workshops (`Jours`). Each folder contains th
 
 - **[Jour 1](./Jour%201/):** Smart Robot Digital Twin (SCADA) via MQTT and FreeRTOS.
 - **[Jour 2](./Jour%202/):** ESP32 Hardware Basics and Wokwi Simulation using PlatformIO.
+- **[Jour 3](./Jour%203/):** Multi-Sensor Acquisition with FreeRTOS & Wokwi Simulation (ESP32, BME280, Potentiometer, IR Sensor).
 
 ---
 *This repository will be updated continuously with new projects, code, and resources over the 2-month program.*
+
