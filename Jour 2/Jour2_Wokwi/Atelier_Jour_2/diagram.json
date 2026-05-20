@@ -11,6 +11,20 @@
       "attrs": {}
     },
     {
+      "type": "wokwi-vcc",
+      "id": "vcc1",
+      "top": -175,
+      "left": 40,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-gnd",
+      "id": "gnd1",
+      "top": 330,
+      "left": 40,
+      "attrs": {}
+    },
+    {
       "type": "wokwi-potentiometer",
       "id": "pot1",
       "top": -120,
@@ -67,33 +81,122 @@
       "top": 210,
       "left": 420,
       "attrs": {}
+    },
+    {
+      "type": "wokwi-7segment",
+      "id": "seg1",
+      "top": -145,
+      "left": 540,
+      "attrs": { "common": "cathode", "color": "orange" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rSegA",
+      "top": -15,
+      "left": 560,
+      "rotate": 90,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rSegB",
+      "top": -15,
+      "left": 600,
+      "rotate": 90,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rSegC",
+      "top": -15,
+      "left": 640,
+      "rotate": 90,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rSegD",
+      "top": -15,
+      "left": 680,
+      "rotate": 90,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rSegE",
+      "top": -15,
+      "left": 720,
+      "rotate": 90,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rSegF",
+      "top": -15,
+      "left": 760,
+      "rotate": 90,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rSegG",
+      "top": -15,
+      "left": 800,
+      "rotate": 90,
+      "attrs": { "value": "220" }
     }
   ],
   "connections": [
     [ "esp:TX0", "$serialMonitor:RX", "", [] ],
     [ "esp:RX0", "$serialMonitor:TX", "", [] ],
 
-    [ "pot1:VCC", "esp:3V3", "red", [] ],
-    [ "pot1:GND", "esp:GND.1", "black", [] ],
+    [ "esp:3V3", "vcc1:VCC", "red", [] ],
+    [ "esp:GND.2", "gnd1:GND", "black", [] ],
+
+    [ "pot1:VCC", "vcc1:VCC", "red", [] ],
+    [ "pot1:GND", "gnd1:GND", "black", [] ],
     [ "pot1:SIG", "esp:D34", "green", [] ],
 
     [ "btn1:1.r", "esp:D12", "green", [] ],
-    [ "btn1:2.l", "esp:GND.2", "black", [] ],
+    [ "btn1:2.l", "gnd1:GND", "black", [] ],
 
     [ "ledGreen:A", "rGreen:1", "green", [] ],
     [ "rGreen:2", "esp:D2", "green", [] ],
-    [ "ledGreen:C", "esp:GND.1", "black", [] ],
+    [ "ledGreen:C", "gnd1:GND", "black", [] ],
 
     [ "ledRed:A", "rRed:1", "red", [] ],
     [ "rRed:2", "esp:D4", "red", [] ],
-    [ "ledRed:C", "esp:GND.1", "black", [] ],
+    [ "ledRed:C", "gnd1:GND", "black", [] ],
 
     [ "bz1:1", "esp:D15", "orange", [] ],
-    [ "bz1:2", "esp:GND.2", "black", [] ],
+    [ "bz1:2", "gnd1:GND", "black", [] ],
 
-    [ "relay1:VCC", "esp:5V", "red", [] ],
-    [ "relay1:GND", "esp:GND.2", "black", [] ],
-    [ "relay1:IN", "esp:D5", "purple", [] ]
+    [ "relay1:VCC", "vcc1:VCC", "red", [] ],
+    [ "relay1:GND", "gnd1:GND", "black", [] ],
+    [ "relay1:IN", "esp:D5", "purple", [] ],
+
+    [ "seg1:COM", "gnd1:GND", "black", [] ],
+
+    [ "seg1:A", "rSegA:1", "orange", [] ],
+    [ "rSegA:2", "esp:D13", "orange", [] ],
+
+    [ "seg1:B", "rSegB:1", "orange", [] ],
+    [ "rSegB:2", "esp:D14", "orange", [] ],
+
+    [ "seg1:C", "rSegC:1", "orange", [] ],
+    [ "rSegC:2", "esp:D18", "orange", [] ],
+
+    [ "seg1:D", "rSegD:1", "orange", [] ],
+    [ "rSegD:2", "esp:D19", "orange", [] ],
+
+    [ "seg1:E", "rSegE:1", "orange", [] ],
+    [ "rSegE:2", "esp:D21", "orange", [] ],
+
+    [ "seg1:F", "rSegF:1", "orange", [] ],
+    [ "rSegF:2", "esp:D22", "orange", [] ],
+
+    [ "seg1:G", "rSegG:1", "orange", [] ],
+    [ "rSegG:2", "esp:D23", "orange", [] ]
   ],
   "dependencies": {}
 }
