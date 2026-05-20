@@ -1,42 +1,42 @@
-# 📌 ورشة العمل: اليوم 3 - الذكاء الاصطناعي الفيزيائي (Physical AI)
-## نظام استحصال بيانات متعدد المستشعرات باستخدام FreeRTOS على متحكم ESP32
+# 📌 Atelier Jour 3 - Physical AI
+## Acquisition multi-capteurs avec FreeRTOS sur ESP32
 
-يحتوي هذا المجلد على مشروع عملي متكامل لليوم الثالث من ورشة عمل **الذكاء الاصطناعي الفيزيائي (Physical AI)**، والذي يركز على تصميم وبرمجة نظام مستند إلى نظام التشغيل في الوقت الحقيقي **FreeRTOS** لتجميع وقراءة البيانات من عدة مستشعرات ومعالجتها في وقت واحد وبشكل متوازٍ دون حدوث تعارض أو تأخير.
+Ce dossier contient le projet pratique du Jour 3 de l'atelier **Physical AI**, axé sur le développement d'un système d'acquisition multi-capteurs multitâche temps réel à l'aide de **FreeRTOS** sur un microcontrôleur **ESP32**.
 
-مشروع الورشة يقع في المجلد: [`atelier jour 3`](file:///Users/hafida/Documents/Physical-AI---ABA-Fusion/Jour%203/atelier%20jour%203)
+Le projet principal se trouve dans le sous-dossier : [`atelier jour 3`](file:///Users/hafida/Documents/Physical-AI---ABA-Fusion/Jour%203/atelier%20jour%203)
 
 ---
 
-## ⚙️ بنية النظام وهندسة البرمجيات (System Architecture)
+## ⚙️ Architecture Système & Conception Logicielle
 
-يعتمد المشروع على تقنية **تعدد المهام (Multitasking)** باستخدام **FreeRTOS** على معالج **ESP32** ثنائي النواة. تتم حماية البيانات المشتركة بين المهام المختلفة باستخدام **مؤشر التزامن (Mutex Semaphore)** لمنع حدوث تعارض في الوصول إلى الذاكرة (Race Conditions).
+Le projet exploite le multitâche offert par **FreeRTOS** sur l'architecture double-cœur de l'**ESP32**. L'accès concurrent aux données partagées entre les différentes tâches est sécurisé à l'aide d'un verrou d'exclusion mutuelle (**Mutex Semaphore**) afin d'éviter tout conflit de mémoire (Race Conditions).
 
-### 📊 مخطط تدفق البيانات والمهام (Mermaid Diagram)
+### 📊 Diagramme de Flux et de Tâches (Mermaid)
 
 ```mermaid
 graph TD
-    %% Sensors
-    BME[مستشعر BME280] -->|I2C| T1(مهمة قراءة BME280 <br> taskLireBME280 - 1 Hz)
-    POT[مقياس الجهد Potentiometer] -->|ADC GPIO25| T2(مهمة قراءة مقياس الجهد <br> taskLirePotentiometre - 10 Hz)
-    IR[مستشعر الأشعة تحت الحمراء IR] -->|Digital GPIO4| T3(مهمة قراءة مستشعر IR <br> taskLireIRSensor - 20 Hz)
+    %% Capteurs
+    BME[Capteur BME280] -->|I2C| T1(Tâche Lecture BME280 <br> taskLireBME280 - 1 Hz)
+    POT[Potentiomètre] -->|ADC GPIO25| T2(Tâche Lecture Potentiomètre <br> taskLirePotentiometre - 10 Hz)
+    IR[Capteur Infrarouge IR] -->|Digital GPIO4| T3(Tâche Lecture IR <br> taskLireIRSensor - 20 Hz)
 
-    %% Shared Struct & Mutex
-    T1 -->|تحديث البيانات تحت قفل الـ Mutex| Data[(بنية البيانات المشتركة <br> SensorData Struct)]
-    T2 -->|تحديث البيانات تحت قفل الـ Mutex| Data
-    T3 -->|تحديث البيانات تحت قفل الـ Mutex| Data
+    %% Structure partagée & Mutex
+    T1 -->|Mise à jour sécurisée via Mutex| Data[(Structure SensorData <br> partagée)]
+    T2 -->|Mise à jour sécurisée via Mutex| Data
+    T3 -->|Mise à jour sécurisée via Mutex| Data
 
-    %% Supervision Task
-    Data -->|قراءة البيانات الآمنة| T4(مهمة الإشراف والتحكم <br> taskSupervision - 5 Hz)
+    %% Tâche Supervision
+    Data -->|Lecture sécurisée| T4(Tâche de Supervision <br> taskSupervision - 5 Hz)
 
-    %% Actuators & Outputs
-    T4 -->|مقارنة بالحدود المسموحة| Thresholds{فحص العتبات والإنذارات}
-    Thresholds -->|حالة طبيعية| LED_G[LED الأخضر: نظام يعمل بشكل ممتاز - GPIO33]
-    Thresholds -->|وجود خطر/تجاوز الحدود| Alert[تفعيل الإنذار]
-    Alert --> LED_R[LED الأحمر - GPIO32]
-    Alert --> BUZZ[الجرس النشط Buzzer - GPIO26]
-    T4 -->|طباعة التقارير والأنشطة| Serial[الشاشة التسلسلية Serial Monitor]
+    %% Actionneurs & Sorties
+    T4 -->|Comparaison aux Seuils| Thresholds{Vérification des Seuils & Alertes}
+    Thresholds -->|État Normal| LED_G[LED Verte : Système OK - GPIO33]
+    Thresholds -->|Dépassement ou Erreur| Alert[Déclenchement Alerte]
+    Alert --> LED_R[LED Rouge - GPIO32]
+    Alert --> BUZZ[Buzzer Actif - GPIO26]
+    T4 -->|Journalisation| Serial[Moniteur Série - 115200 baud]
 
-    %% Styling
+    %% Style
     style Data fill:#f9f,stroke:#333,stroke-width:2px
     style Thresholds fill:#ff9,stroke:#333,stroke-width:2px
     style Alert fill:#f99,stroke:#333,stroke-width:2px
@@ -44,101 +44,96 @@ graph TD
 
 ---
 
-## 🔌 التوصيلات وتوزيع الدبابيس (Pin Mapping)
+## 🔌 Câblage & Brochage (Pin Mapping)
 
-تم تصميم التوصيلات ومحاكاتها باستخدام منصة **Wokwi**. فيما يلي جدول يوضح كيفية ربط القطع الإلكترونية مع لوحة التطوير **ESP32 (uPesy Wroom DevKit)**:
+Le circuit et ses composants ont été modélisés pour la simulation sur **Wokwi**. Le tableau suivant récapitule les connexions physiques avec la carte de développement **ESP32 (uPesy Wroom DevKit)** :
 
-| المكون الإلكتروني | نوع الإشارة | منفذ الـ ESP32 (GPIO) | الوصف |
+| Composant | Type de Signal | Broche ESP32 (GPIO) | Description |
 | :--- | :--- | :--- | :--- |
-| **مستشعر BME280** | I2C (SDA) | **GPIO 21** | خط بيانات مستشعر الحرارة، الرطوبة، والضغط الجوي |
-| **مستشعر BME280** | I2C (SCL) | **GPIO 22** | خط ساعة التزامن للمستشعر |
-| **مقياس الجهد (Potentiometer)** | Analog | **GPIO 25** | إشارة تماثلية لمحاكاة قيم متغيرة (0 - 4095) |
-| **مستشعر الأشعة تحت الحمراء (IR)** | Digital | **GPIO 4** | اكتشاف العوائق والأجسام المقتربة |
-| **LED الأخضر (Green LED)** | Digital | **GPIO 33** | مؤشر الضوء الأخضر (حالة النظام: طبيعي وسليم) |
-| **LED الأحمر (Red LED)** | Digital | **GPIO 32** | مؤشر الضوء الأحمر (حالة النظام: إنذار/خطر) |
-| **الجرس (Buzzer)** | Digital | **GPIO 26** | إنذار صوتي يصدر صوتاً عند وجود خطر |
+| **Capteur BME280** | I2C (SDA) | **GPIO 21** | Ligne de données (Température, Humidité, Pression) |
+| **Capteur BME280** | I2C (SCL) | **GPIO 22** | Ligne d'horloge de synchronisation |
+| **Potentiomètre** | Analogique | **GPIO 25** | Signal analogique pour simuler une consigne (0 - 4095) |
+| **Capteur Infrarouge (IR)** | Digital | **GPIO 4** | Détection d'obstacle (entrée avec résistance de tirage) |
+| **LED Verte** | Digital | **GPIO 33** | Indicateur d'état système : Fonctionnement normal (OK) |
+| **LED Rouge** | Digital | **GPIO 32** | Indicateur d'état système : Alerte |
+| **Buzzer** | Digital | **GPIO 26** | Alerte sonore active en cas de danger/dépassement |
 
 ---
 
-## 🧠 تفاصيل مهام FreeRTOS (Task Details)
+## 🧠 Détails des Tâches FreeRTOS
 
-يتم توزيع المهام بناءً على التردد والاحتياج الزمني لكل مستشعر كالتالي:
+Les tâches s'exécutent de façon concurrente avec des périodes et des priorités adaptées à la dynamique de chaque capteur :
 
-1. **مهمة قراءة BME280 (`taskLireBME280`)**:
-   - **التردد**: 1 هرتز (مرة كل 1000 ملي ثانية).
-   - **الهدف**: قراءة قيم الحرارة والرطوبة والضغط الجوي. يعتبر هذا المستشعر بطيئ الاستجابة لذا تم ضبطه على تردد منخفض لتوفير موارد المعالج.
-   - **حجم المكدس (Stack Size)**: 4096 بايت.
+1. **Lecture du BME280 (`taskLireBME280`)** :
+   - **Fréquence** : 1 Hz (toutes les 1000 ms).
+   - **Rôle** : Récupère la température, l'humidité et la pression. Comme le BME280 est un capteur physiquement lent, une faible fréquence de rafraîchissement permet d'alléger la charge du processeur.
+   - **Taille de pile (Stack Size)** : 4096 octets.
 
-2. **مهمة قراءة مقياس الجهد (`taskLirePotentiometre`)**:
-   - **التردد**: 10 هرتز (مرة كل 100 ملي ثانية).
-   - **الهدف**: قراءة الإشارة التماثلية وتطبيق مرشح المتوسط المتحرك (Moving Average Filter) على 5 عينات متتالية لتقليل الضوضاء البرمجية الناتجة عن الـ ADC، ثم تحويل القيمة الرقمية المفلترة إلى جهد كهربائي بالفولت (0 - 3.3V).
-   - **حجم المكدس (Stack Size)**: 2048 بايت.
+2. **Lecture du Potentiomètre (`taskLirePotentiometre`)** :
+   - **Fréquence** : 10 Hz (toutes les 100 ms).
+   - **Rôle** : Échantillonne l'entrée ADC et applique un filtre de moyenne mobile sur 5 échantillons consécutifs pour stabiliser le signal. Il calcule ensuite la tension réelle en volts (0 - 3.3V).
+   - **Taille de pile (Stack Size)** : 2048 octets.
 
-3. **مهمة قراءة مستشعر الأشعة تحت الحمراء (`taskLireIRSensor`)**:
-   - **التردد**: 20 هرتز (مرة كل 50 ملي ثانية).
-   - **الهدف**: الكشف السريع جداً عن العوائق كونه مستشعراً حرجاً يتطلب استجابة سريعة.
-   - **حجم المكدس (Stack Size)**: 2048 بايت.
+3. **Lecture du Capteur Infrarouge (`taskLireIRSensor`)** :
+   - **Fréquence** : 20 Hz (toutes les 50 ms).
+   - **Rôle** : Détecte très rapidement la présence d'un obstacle. Cette tâche requiert une haute réactivité.
+   - **Taille de pile (Stack Size)** : 2048 octets.
 
-4. **مهمة الإشراف والتحكم (`taskSupervision`)**:
-   - **التردد**: 5 هرتز (مرة كل 200 ملي ثانية).
-   - **الهدف**: نسخ بيانات المستشعرات بشكل آمن باستخدام الـ Mutex، وفحص الشروط الحدودية وتفعيل المخارج والمؤشرات والإنذارات، بالإضافة إلى كتابة تقرير اللحظي (Log) وإرساله عبر الواجهة التسلسلية بـسرعة نقل `115200` باود.
-   - **حجم المكدس (Stack Size)**: 4096 بايت.
-
----
-
-## 🚨 منطق الإنذار وفحص العتبات (Alert Logic)
-
-ينتقل النظام إلى **وضع الإنذار (Alert State)** إذا تحقق أحد الشروط التالية:
-* **تجاوز درجة الحرارة الحد المسموح به**: `Temperature > 23.0 °C`.
-* **تجاوز قيمة مقياس الجهد القيمة المحددة**: `Potentiometer Value > 3000` (من أصل 4095).
-* **اكتشاف عائق بواسطة مستشعر IR**: استقبال إشارة منطقية عالية `HIGH`.
-* **فشل الاتصال بمستشعر BME280**: عدم استجابة المستشعر على قنوات الـ I2C.
-
-**رد فعل النظام عند الإنذار:**
-* إيقاف تشغيل **LED الأخضر**.
-* تشغيل **LED الأحمر** بشكل مستمر.
-* تشغيل **الجرس (Buzzer)** بشكل مستمر.
-
-**في الحالة الطبيعية (Normal State):**
-* تشغيل **LED الأخضر**.
-* إيقاف تشغيل **LED الأحمر** والـ **Buzzer**.
+4. **Supervision & Diagnostic (`taskSupervision`)** :
+   - **Fréquence** : 5 Hz (toutes les 200 ms).
+   - **Rôle** : Copie les données partagées de manière thread-safe (via Mutex), valide les seuils d'alerte, pilote les LEDs/Buzzer et logue l'état global du système sur le port série (`115200` bauds).
+   - **Taille de pile (Stack Size)** : 4096 octets.
 
 ---
 
-## 🛠️ كيفية التشغيل والمحاكاة (Run & Simulation)
+## 🚨 Logique d'Alerte et Seuils (Alert Logic)
 
-يمكن تشغيل هذا المشروع برمجياً ومحاكاته بالكامل دون الحاجة إلى عتاد حقيقي (Hardware) باستخدام **PlatformIO** وملف محاكاة **Wokwi** المرفق.
+Le système passe en **mode Alerte** si l'une des conditions suivantes est remplie :
+* **Température hors limite** : `Température > 23.0 °C`.
+* **Valeur potentiomètre élevée** : `Valeur Potentiomètre > 3000` (sur 4095).
+* **Obstacle détecté** : Le capteur IR renvoie un état haut `HIGH`.
+* **Défaut de capteur** : Le capteur BME280 est introuvable sur le bus I2C (adresse `0x76` ou `0x77`).
 
-### 1. المتطلبات البرمجية الأساسية
-* بيئة التطوير **Visual Studio Code (VS Code)**.
-* إضافة **PlatformIO IDE** لـ VS Code.
-* إضافة **Wokwi Simulator** لـ VS Code (أو استخدام موقع Wokwi مباشرة برفع ملفات المشروع).
+**Comportement en cas d'Alerte :**
+* La LED Verte est **éteinte**.
+* La LED Rouge est **allumée**.
+* Le Buzzer est **activé**.
 
-### 2. البناء والرفع (Build & Compile)
-1. افتح مجلد المشروع `atelier jour 3` في VS Code.
-2. انتظر حتى يقوم PlatformIO بتحميل المكتبات المطلوبة والمحددة في ملف `platformio.ini` وهي:
+**Comportement en état Normal :**
+* La LED Verte est **allumée**.
+* La LED Rouge est **éteinte**.
+* Le Buzzer est **désactivé**.
+
+---
+
+## 🛠️ Compilation & Simulation
+
+Vous pouvez compiler et simuler ce projet sans aucun matériel physique grâce à **PlatformIO** et l'intégration de l'émulateur **Wokwi**.
+
+### 1. Prérequis Logiciels
+* **Visual Studio Code (VS Code)**.
+* L'extension **PlatformIO IDE** pour VS Code.
+* L'extension **Wokwi Simulator** pour VS Code.
+
+### 2. Compilation
+1. Ouvrez le dossier `atelier jour 3` dans VS Code.
+2. PlatformIO téléchargera automatiquement les dépendances définies dans `platformio.ini` :
    - `Adafruit BME280 Library`
    - `Adafruit Unified Sensor`
-3. قم ببناء المشروع بالضغط على علامة الصح (✓) أسفل واجهة VS Code أو عبر تشغيل الأمر التالي في سطر الأوامر الخاص بـ PlatformIO:
+3. Lancez la compilation en cliquant sur l'icône en forme de coche (✓) en bas de la fenêtre de VS Code ou via le terminal PlatformIO :
    ```bash
    pio run
    ```
 
-### 3. محاكاة المشروع عبر Wokwi
-يحتوي المشروع على ملفات التهيئة الجاهزة للمحاكاة:
-* [`diagram.json`](file:///Users/hafida/Documents/Physical-AI---ABA-Fusion/Jour%203/atelier%20jour%203/diagram.json): يحدد الدوائر الإلكترونية الموصولة افتراضياً ومواقعها.
-* [`wokwi.toml`](file:///Users/hafida/Documents/Physical-AI---ABA-Fusion/Jour%203/atelier%20jour%203/wokwi.toml): يربط المحاكي بملف البناء الثنائي الناتج من PlatformIO (`firmware.bin`).
+### 3. Simulation Wokwi
+Le dossier contient les configurations nécessaires :
+* [`diagram.json`](file:///Users/hafida/Documents/Physical-AI---ABA-Fusion/Jour%203/atelier%20jour%203/diagram.json) : Contient l'agencement graphique et les branchements des composants virtuels.
+* [`wokwi.toml`](file:///Users/hafida/Documents/Physical-AI---ABA-Fusion/Jour%203/atelier%20jour%203/wokwi.toml) : Fait le lien vers les fichiers binaires compilés par PlatformIO (`firmware.bin` / `firmware.elf`).
 
-لتشغيل المحاكاة في VS Code:
-1. افتح ملف `diagram.json`.
-2. اضغط على زر **Play/Start Simulation** الذي يظهر في الجزء العلوي للملف أو عبر لوحة الأوامر (`Cmd+Shift+P` ثم اختيار `Wokwi: Start Simulator`).
-3. يمكنك التفاعل مع المستشعرات الافتراضية أثناء التشغيل:
-   - تغيير درجة حرارة الرطوبة/الضغط والحرارة على مستشعر BME280.
-   - تحريك منزلق مقياس الجهد (Potentiometer).
-   - تفعيل/تعطيل مستشعر الحركة (IR sensor) لرؤية استجابة الإنذارات والـ LEDs بشكل فوري.
-
----
-
-### 📝 ملاحظات إضافية حول الكود
-* **دقة قراءة الـ ADC**: تم إعداد دقة القراءة لتكون 12 بت (`analogReadResolution(12)`) لتعطي مدى قراءة بين `0` و `4095`.
-* **معدل الباود**: سرعة الاتصال التسلسلي مهيأة على `115200` باود، تأكد من مطابقتها في شاشة مراقبة الاتصال التسلسلي (Serial Monitor) لقراءة السجلات بشكل صحيح.
+Pour démarrer la simulation :
+1. Ouvrez le fichier `diagram.json`.
+2. Cliquez sur le bouton de lecture (**Play**) ou lancez la commande via la palette d'actions (`Cmd+Shift+P` -> `Wokwi: Start Simulator`).
+3. Pendant la simulation, vous pouvez interagir en direct :
+   - Ajuster la température et l'humidité sur le boîtier BME280 virtuel.
+   - Tourner le bouton du potentiomètre virtuel.
+   - Déclencher le capteur IR pour simuler la présence d'obstacles et observer les réactions instantanées du système d'alarme.
