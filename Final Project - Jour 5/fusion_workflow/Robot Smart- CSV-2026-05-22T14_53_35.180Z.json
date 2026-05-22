@@ -1,0 +1,480 @@
+[
+  {
+    "_id": "6a15ba93c1d2d6814a",
+    "userId": "9a3eb9aa-6ea8-48eb-a547-740df51c0740",
+    "name": "Robot Smart- CSV",
+    "variables": {},
+    "secrets": {},
+    "nodes": [
+      {
+        "position": {
+          "x": 672,
+          "y": 260.00694274902344
+        },
+        "width": 64,
+        "height": 64,
+        "selected": false,
+        "id": "8b9ba1a7-2d90-4a24-98a9-9e8bf59bfce8",
+        "type": "trigger",
+        "data": {
+          "description": "Triggers workflow on incoming HTTP requests",
+          "showRunningStatus": false,
+          "_morphing": false,
+          "name": "webhook",
+          "label": "Webhook Trigger",
+          "inputs": {},
+          "outputs": {
+            "success": {
+              "label": "Success",
+              "isConnectable": null
+            },
+            "error": {
+              "label": "Error",
+              "isConnectable": null
+            }
+          },
+          "parameters": {
+            "method": "post",
+            "respondType": "immediate",
+            "responseCode": 200,
+            "path": "/robot-telemetry"
+          },
+          "defaultOutput": null
+        },
+        "inputs": null,
+        "outputs": null
+      },
+      {
+        "position": {
+          "x": 954.5,
+          "y": 246.51388549804688
+        },
+        "width": 64,
+        "height": 64,
+        "selected": false,
+        "id": "c263aed0-caa3-4ffe-98bd-3325e840d4f9",
+        "type": "action",
+        "data": {
+          "description": "Executes custom JavaScript code on the input data.",
+          "showRunningStatus": true,
+          "_morphing": false,
+          "name": "function",
+          "label": "Normalize_Telemetry_Data",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "success": {
+              "label": "Success",
+              "isConnectable": null
+            },
+            "error": {
+              "label": "Error",
+              "isConnectable": null
+            }
+          },
+          "parameters": {
+            "code": "const raw = input.body || input;\n\nfunction asBoolean(value) {\n  return (\n    value === true ||\n    value === \"true\" ||\n    value === 1 ||\n    value === \"1\"\n  );\n}\n\nconst humidityValue =\n  raw.humidity_pct === null ||\n  raw.humidity_pct === undefined ||\n  raw.humidity_pct === \"\"\n    ? \"\"\n    : Number(raw.humidity_pct);\n\nconst normalized = {\n  received_at: new Date().toISOString(),\n\n  device: String(raw.device || \"unknown\"),\n\n  time_ms: Number(raw.time_ms ?? 0),\n\n  ir: Number(raw.ir ?? 0),\n\n  obstacle: asBoolean(raw.obstacle),\n\n  pot_raw: Number(raw.pot_raw ?? 0),\n\n  pot_filtered: Number(raw.pot_filtered ?? 0),\n\n  stop_pressed: asBoolean(raw.stop_pressed),\n\n  ax: Number(raw.ax ?? 0),\n\n  ay: Number(raw.ay ?? 0),\n\n  az: Number(raw.az ?? 0),\n\n  shock_delta: Number(raw.shock_delta ?? 0),\n\n  humidity_pct: humidityValue,\n\n  bme_available: asBoolean(raw.bme_available),\n\n  state: String(raw.state || \"UNKNOWN\").toUpperCase(),\n\n  reason: String(raw.reason || \"UNKNOWN\"),\n\n  relay: String(raw.relay || \"OFF\").toUpperCase(),\n\n  remote_stop: asBoolean(raw.remote_stop),\n\n  rssi: Number(raw.rssi ?? 0)\n};\n\nreturn {\n  data: normalized\n};"
+          },
+          "defaultOutput": null
+        },
+        "inputs": null,
+        "outputs": null
+      },
+      {
+        "position": {
+          "x": 1224.5,
+          "y": 263.5138854980469
+        },
+        "width": 64,
+        "height": 68,
+        "selected": false,
+        "id": "0cd03dfe-f477-4a6c-8303-9b2a7801dd22",
+        "type": "utility",
+        "data": {
+          "description": "Executes different branches based on a condition",
+          "showRunningStatus": false,
+          "_morphing": false,
+          "name": "if-else",
+          "label": "Validate_Device_ID",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "true": {
+              "label": "True",
+              "isConnectable": null
+            },
+            "false": {
+              "label": "False",
+              "isConnectable": null
+            },
+            "error": {
+              "label": "Error",
+              "isConnectable": null
+            }
+          },
+          "parameters": {
+            "condition": "(() => {\n  const d = input.data || {};\n\n  return (\n    d.device !== undefined &&\n    d.device !== null &&\n    d.device !== \"unknown\" &&\n    String(d.device).trim() !== \"\" &&\n    [\"NORMAL\", \"WARNING\", \"STOP\", \"FAULT\"].includes(d.state)\n  );\n})()"
+          },
+          "defaultOutput": null
+        },
+        "inputs": null,
+        "outputs": null
+      },
+      {
+        "position": {
+          "x": 1427.5,
+          "y": 226.51388549804688
+        },
+        "width": 64,
+        "height": 64,
+        "selected": false,
+        "id": "c09b395a-3751-4019-8311-185ca2508fe6",
+        "type": "action",
+        "data": {
+          "description": "Value operations for Google Sheets (append/update/get)",
+          "showRunningStatus": true,
+          "_morphing": false,
+          "name": "google-sheets.values",
+          "label": "Append_to_Google_Sheets",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "success": {
+              "label": "Success",
+              "isConnectable": null
+            },
+            "error": {
+              "label": "Error",
+              "isConnectable": null
+            }
+          },
+          "parameters": {
+            "operation": "append",
+            "clientId": "YOUR_GOOGLE_CLIENT_ID",
+            "clientSecret": "YOUR_GOOGLE_CLIENT_SECRET",
+            "redirectUri": "http://localhost",
+            "refreshToken": "YOUR_GOOGLE_REFRESH_TOKEN",
+            "spreadsheetId": "173TeDCaLsbsgBliw9qLjQdMT4459wBunQ0EXsL9o6mA",
+            "range": "Sheet1!A:S",
+            "values": [
+              [
+                "{{outputs.Normalize_Telemetry_Data.success.data.received_at}}",
+                "{{outputs.Normalize_Telemetry_Data.success.data.device}}",
+                "{{outputs.Normalize_Telemetry_Data.success.data.time_ms}}",
+                "{{outputs.Normalize_Telemetry_Data.success.data.ir}}",
+                "{{outputs.Normalize_Telemetry_Data.success.data.obstacle}}",
+                "{{outputs.Normalize_Telemetry_Data.success.data.pot_raw}}",
+                "{{outputs.Normalize_Telemetry_Data.success.data.pot_filtered}}",
+                "{{outputs.Normalize_Telemetry_Data.success.data.stop_pressed}}",
+                "{{outputs.Normalize_Telemetry_Data.success.data.ax}}",
+                "{{outputs.Normalize_Telemetry_Data.success.data.ay}}",
+                "{{outputs.Normalize_Telemetry_Data.success.data.az}}",
+                "{{outputs.Normalize_Telemetry_Data.success.data.shock_delta}}",
+                "{{outputs.Normalize_Telemetry_Data.success.data.humidity_pct}}",
+                "{{outputs.Normalize_Telemetry_Data.success.data.bme_available}}",
+                "{{outputs.Normalize_Telemetry_Data.success.data.state}}",
+                "{{outputs.Normalize_Telemetry_Data.success.data.reason}}",
+                "{{outputs.Normalize_Telemetry_Data.success.data.relay}}",
+                "{{outputs.Normalize_Telemetry_Data.success.data.remote_stop}}",
+                "{{outputs.Normalize_Telemetry_Data.success.data.rssi}}"
+              ]
+            ]
+          },
+          "defaultOutput": null
+        },
+        "inputs": null,
+        "outputs": null
+      },
+      {
+        "position": {
+          "x": 1697.5,
+          "y": 226.51388549804688
+        },
+        "width": 64,
+        "height": 64,
+        "selected": false,
+        "id": "e9d75e9c-ca97-4c21-b558-28b89c907de1",
+        "type": "action",
+        "data": {
+          "description": "Responds to a webhook with a specific message.",
+          "showRunningStatus": false,
+          "_morphing": false,
+          "name": "respond-to-webhook",
+          "label": "Success_Response",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "success": {
+              "label": "Success",
+              "isConnectable": null
+            },
+            "error": {
+              "label": "Error",
+              "isConnectable": null
+            }
+          },
+          "parameters": {
+            "responseCode": 200,
+            "responseBody": {
+              "timestamp": "input.data.received_at",
+              "device": "input.data.device_id"
+            }
+          },
+          "defaultOutput": null
+        },
+        "inputs": null,
+        "outputs": null
+      },
+      {
+        "position": {
+          "x": 1697.5,
+          "y": 341.5138854980469
+        },
+        "width": 64,
+        "height": 64,
+        "selected": false,
+        "id": "20181605-a209-4379-a6c2-3e944aab974e",
+        "type": "action",
+        "data": {
+          "description": "Responds to a webhook with a specific message.",
+          "showRunningStatus": false,
+          "_morphing": false,
+          "name": "respond-to-webhook",
+          "label": "Error_Response",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "success": {
+              "label": "Success",
+              "isConnectable": null
+            },
+            "error": {
+              "label": "Error",
+              "isConnectable": null
+            }
+          },
+          "parameters": {
+            "responseCode": 400,
+            "responseBody": {
+              "success": false,
+              "message": "Invalid device or state - telemetry not saved"
+            }
+          },
+          "defaultOutput": null
+        },
+        "inputs": null,
+        "outputs": null
+      },
+      {
+        "position": {
+          "x": 1159.9796395193591,
+          "y": -7.64462386208956
+        },
+        "width": 256,
+        "height": 100,
+        "dragHandle": ".drag-handle__custom",
+        "id": "umq0qire4b81dkn1wdh98h3w",
+        "type": "display",
+        "data": {
+          "description": "Logs the input data to the console.",
+          "showRunningStatus": false,
+          "_morphing": false,
+          "name": "media-log",
+          "label": "Log",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "success": {
+              "label": "Success",
+              "isConnectable": false
+            }
+          },
+          "parameters": {},
+          "defaultOutput": null
+        },
+        "inputs": null,
+        "outputs": null
+      },
+      {
+        "position": {
+          "x": 1931.1411882510013,
+          "y": -1.556506372102925
+        },
+        "width": 256,
+        "height": 100,
+        "dragHandle": ".drag-handle__custom",
+        "selected": false,
+        "id": "r898c5a3a1mjzvgf8dwb64ur",
+        "type": "display",
+        "data": {
+          "description": "Logs the input data to the console.",
+          "showRunningStatus": false,
+          "_morphing": false,
+          "name": "media-log",
+          "label": "Log1",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "success": {
+              "label": "Success",
+              "isConnectable": false
+            }
+          },
+          "parameters": {},
+          "defaultOutput": null
+        },
+        "inputs": null,
+        "outputs": null
+      },
+      {
+        "position": {
+          "x": 1811.4082109479307,
+          "y": 351.55430804712273
+        },
+        "width": 256,
+        "height": 100,
+        "dragHandle": ".drag-handle__custom",
+        "id": "n6be4inhk76dgigads9gv9n2",
+        "type": "display",
+        "data": {
+          "description": "Logs the input data to the console.",
+          "showRunningStatus": false,
+          "_morphing": false,
+          "name": "media-log",
+          "label": "Log2",
+          "inputs": {
+            "input": {
+              "label": "Input"
+            }
+          },
+          "outputs": {
+            "success": {
+              "label": "Success",
+              "isConnectable": false
+            }
+          },
+          "parameters": {},
+          "defaultOutput": null
+        },
+        "inputs": null,
+        "outputs": null
+      }
+    ],
+    "connections": [
+      {
+        "type": "directed",
+        "id": "conn_webhook_to_normalize",
+        "data": {
+          "isAnimated": false
+        },
+        "source": "8b9ba1a7-2d90-4a24-98a9-9e8bf59bfce8",
+        "target": "c263aed0-caa3-4ffe-98bd-3325e840d4f9",
+        "sourceHandle": "success",
+        "targetHandle": "input"
+      },
+      {
+        "type": "directed",
+        "id": "conn_normalize_to_validate",
+        "data": {
+          "isAnimated": false
+        },
+        "source": "c263aed0-caa3-4ffe-98bd-3325e840d4f9",
+        "target": "0cd03dfe-f477-4a6c-8303-9b2a7801dd22",
+        "sourceHandle": "success",
+        "targetHandle": "input"
+      },
+      {
+        "type": "directed",
+        "id": "conn_validate_true_to_sheets",
+        "data": {
+          "isAnimated": false
+        },
+        "source": "0cd03dfe-f477-4a6c-8303-9b2a7801dd22",
+        "target": "c09b395a-3751-4019-8311-185ca2508fe6",
+        "sourceHandle": "true",
+        "targetHandle": "input"
+      },
+      {
+        "type": "directed",
+        "id": "conn_sheets_to_response",
+        "data": {
+          "isAnimated": false
+        },
+        "source": "c09b395a-3751-4019-8311-185ca2508fe6",
+        "target": "e9d75e9c-ca97-4c21-b558-28b89c907de1",
+        "sourceHandle": "success",
+        "targetHandle": "input"
+      },
+      {
+        "type": "directed",
+        "id": "conn_validate_false_to_error",
+        "data": {
+          "isAnimated": false
+        },
+        "source": "0cd03dfe-f477-4a6c-8303-9b2a7801dd22",
+        "target": "20181605-a209-4379-a6c2-3e944aab974e",
+        "sourceHandle": "false",
+        "targetHandle": "input"
+      },
+      {
+        "type": "directed",
+        "id": "xy-edge__c263aed0-caa3-4ffe-98bd-3325e840d4f9success-umq0qire4b81dkn1wdh98h3winput",
+        "data": {
+          "isAnimated": false
+        },
+        "source": "c263aed0-caa3-4ffe-98bd-3325e840d4f9",
+        "target": "umq0qire4b81dkn1wdh98h3w",
+        "sourceHandle": "success",
+        "targetHandle": "input"
+      },
+      {
+        "type": "directed",
+        "id": "xy-edge__e9d75e9c-ca97-4c21-b558-28b89c907de1success-r898c5a3a1mjzvgf8dwb64urinput",
+        "data": {
+          "isAnimated": false
+        },
+        "source": "e9d75e9c-ca97-4c21-b558-28b89c907de1",
+        "target": "r898c5a3a1mjzvgf8dwb64ur",
+        "sourceHandle": "success",
+        "targetHandle": "input"
+      },
+      {
+        "type": "directed",
+        "id": "xy-edge__20181605-a209-4379-a6c2-3e944aab974esuccess-n6be4inhk76dgigads9gv9n2input",
+        "data": {
+          "isAnimated": false
+        },
+        "source": "20181605-a209-4379-a6c2-3e944aab974e",
+        "target": "n6be4inhk76dgigads9gv9n2",
+        "sourceHandle": "success",
+        "targetHandle": "input"
+      }
+    ],
+    "status": "stopped",
+    "id": "025b8d6e-5c63-40e2-aeb1-9ba7262ea39f",
+    "createdAt": 1779450134985,
+    "updatedAt": "2026-05-22T14:53:34.320Z",
+    "previousStatus": "running"
+  }
+]

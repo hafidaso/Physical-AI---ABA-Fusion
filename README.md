@@ -21,6 +21,11 @@ The curriculum is organized by days/workshops (`Jours`). Each folder contains th
   - **[Motor Jour 4](./Jour%204/Motor%20Jour%204/):** Régulation de vitesse d'un moteur CC (L298N) par potentiomètre, acquisition DHT11 et affichage sur LCD I2C.
 
 
+
+- **[Final Project - Jour 5](./Final%20Project%20-%20Jour%205/):** Projet de fin du Chapitre 1 - Smart Robot Safety Controller, SCADA Dashboard et Intégration ABA Fusion.
+  - **Local Hardware Controller (C++)** : Logique de sécurité autonome sur ESP32 gérant de multiples capteurs (IR, Potentiomètre, MPU6050) et actionneurs (Relais, LEDs, TM1637).
+  - **SCADA Dashboard (Python)** : Interface Pygame pour la visualisation de la télémétrie en temps réel via MQTT (HiveMQ) et l'envoi de commandes distantes.
+  - **ABA Fusion Workflow (JSON)** : Pipeline Cloud recevant la télémétrie via Webhook, la traitant et l'exportant vers Google Sheets.
+
 ---
 *This repository will be updated continuously with new projects, code, and resources over the 2-month program.*
-
