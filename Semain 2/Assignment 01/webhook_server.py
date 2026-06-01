@@ -3,17 +3,17 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 
 class WebhookHandler(BaseHTTPRequestHandler):
     def do_POST(self):
-        # Check path
+        # On vérifie si la requête cible l'adresse '/webhook'
         if self.path == '/webhook':
-            # Get content length
+            # On récupère la longueur des données reçues
             content_length = int(self.headers.get('Content-Length', 0))
             post_data = self.rfile.read(content_length)
             
             try:
-                # Parse JSON
+                # Décodage et lecture du payload JSON
                 payload = json.loads(post_data.decode('utf-8'))
                 
-                # Format print
+                # Affichage propre dans la console
                 print("\n" + "="*50)
                 print(f"📡 RECEIVED TELEMETRY - {payload.get('agv_id', 'UNKNOWN')}")
                 print(f"  Mission ID : {payload.get('mission_id')}")
@@ -29,7 +29,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 print(f"  Network    : {payload.get('connectivity_status')}")
                 print("="*50)
                 
-                # Respond success
+                # Envoi d'une réponse de succès au simulateur
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
@@ -46,7 +46,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
-    # Suppress default server log output in console to keep telemetry output clean
+    # On désactive les messages de log par défaut de Python pour garder la console propre
     def log_message(self, format, *args):
         return
 

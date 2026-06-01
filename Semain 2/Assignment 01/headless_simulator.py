@@ -6,25 +6,25 @@ import random
 import sys
 from typing import Set
 
-# Local imports
+# Imports locaux
 from warehouse_map import ZoneXTrafficController
 from agv_agent import AGV
 from telemetry_sender import TelemetrySender
 
-# Track connected WebSocket clients
+# Liste des clients WebSocket actuellement connectés
 CONNECTED_CLIENTS: Set = set()
 
-# Global Simulation State for frontend control overrides
+# État global de la simulation (contrôlé à distance par l'IHM)
 GLOBAL_STATE = {
     "emergency_stop": False,
     "paused": False
 }
 
-# Global dictionary to look up active AGVs for dispatching
+# Dictionnaire global pour retrouver les AGV actifs lors d'un aiguillage manuel
 AGV_FLEET = {}
 
 async def register(websocket):
-    """Registers a new WebSocket connection and listens for control commands."""
+    """Enregistre un nouveau client WebSocket et écoute les commandes envoyées par l'IHM."""
     CONNECTED_CLIENTS.add(websocket)
     print(f"🔌 Client connected: {websocket.remote_address}. Active connections: {len(CONNECTED_CLIENTS)}")
     try:
@@ -55,37 +55,37 @@ async def register(websocket):
         print(f"🔌 Client disconnected. Active connections: {len(CONNECTED_CLIENTS)}")
 
 async def broadcast(message: str):
-    """Sends a message to all connected clients."""
+    """Envoie un message à l'ensemble des clients connectés."""
     if CONNECTED_CLIENTS:
         await asyncio.gather(*[client.send(message) for client in CONNECTED_CLIENTS], return_exceptions=True)
 
 async def simulation_loop():
-    """Asynchronous physics loop running at 10 Hz (every 100ms) for smooth visual updates."""
-    # Setup agents
+    """Boucle de physique asynchrone tournant à 10 Hz (toutes les 100 ms) pour une animation 3D fluide."""
+    # Initialisation de nos deux robots AGV
     agv1 = AGV("AGV-01", "A", (255, 120, 80)) # Warm Coral
     agv2 = AGV("AGV-02", "B", (46, 204, 250)) # Bright Teal
     traffic_controller = ZoneXTrafficController()
     
-    # Store globally for access by the WebSocket command handler
+    # On les enregistre dans notre dictionnaire global pour pouvoir les aiguiller manuellement via WebSocket
     AGV_FLEET["AGV-01"] = agv1
     AGV_FLEET["AGV-02"] = agv2
     
-    # Setup background telemetry sender (logs to file, webhook, mqtt)
+    # Configuration de la télémétrie en arrière-plan (fichiers, MQTT, etc.)
     telemetry_sender = TelemetrySender(
         webhook_url="http://127.0.0.1:5000/webhook"
     )
     
-    dt = 0.1  # 100ms time step
+    dt = 0.1  # Pas de temps de 100 ms
     telemetry_timer = 0.0
     
     print("🤖 Headless Simulator loop started.")
     try:
         while True:
-            # 1. Update physics if not paused
+            # 1. Mise à jour de la physique si la simulation n'est pas en pause
             if not GLOBAL_STATE["paused"]:
-                # Generate new missions automatically when IDLE
+                # Si le robot n'a rien à faire et qu'il n'y a pas d'arrêt d'urgence, on lui donne une mission
                 if agv1.state == "IDLE" and not GLOBAL_STATE["emergency_stop"]:
-                    # Select any warehouse zone (A, B, C, D) different from current zone for more diverse movements
+                    # On choisit une zone au hasard différente de sa zone de départ pour diversifier les trajets
                     choices = [z for z in ['A', 'B', 'C', 'D'] if z != agv1.current_zone]
                     agv1.start_mission(random.choice(choices))
                     
@@ -93,15 +93,15 @@ async def simulation_loop():
                     choices = [z for z in ['A', 'B', 'C', 'D'] if z != agv2.current_zone]
                     agv2.start_mission(random.choice(choices))
                     
-                # Update AGVs physics and collision sensors
+                # Mise à jour de la physique et des capteurs de distance
                 agv1.update(dt, agv2, traffic_controller, GLOBAL_STATE["emergency_stop"])
                 agv2.update(dt, agv1, traffic_controller, GLOBAL_STATE["emergency_stop"])
             
-            # Fetch current telemetry payloads
+            # Récupération des données physiques actuelles
             payload1 = agv1.get_telemetry_payload()
             payload2 = agv2.get_telemetry_payload()
             
-            # Broadcast state over WebSockets for the 3D Digital Twin frontend
+            # Envoi des données en temps réel au jumeau numérique 3D
             twin_payload = {
                 "timestamp": time.time(),
                 "emergency_stop": GLOBAL_STATE["emergency_stop"],
@@ -110,7 +110,7 @@ async def simulation_loop():
             }
             await broadcast(json.dumps(twin_payload))
             
-            # Dispatch logs and webhook alerts every 1.5 seconds (only when not paused)
+            # Enregistrement des logs et requêtes webhook toutes les 1,5 secondes (si pas en pause)
             if not GLOBAL_STATE["paused"]:
                 telemetry_timer += dt
                 if telemetry_timer >= 1.5:
@@ -128,12 +128,12 @@ async def simulation_loop():
         telemetry_sender.stop()
 
 async def main():
-    # Start WebSocket Server on port 8765
+    # Lancement du serveur WebSockets sur le port 8765
     async with websockets.serve(register, "localhost", 8765):
         print("🚀 Digital Twin WebSocket Server running at ws://localhost:8765")
         print("Press Ctrl+C to terminate.")
         
-        # Start the simulator physics loop in parallel
+        # Lancement de la boucle physique en parallèle
         await simulation_loop()
 
 if __name__ == '__main__':
