@@ -1,5 +1,7 @@
 # 🤖 Physical AI - ABA Fusion Program
 
+**Developed by: Hafida Belayd**
+
 Welcome to the repository for the **Physical AI** training program in collaboration with **ABA Fusion**.
 This training program spans **two months** and focuses on integrating Artificial Intelligence and software engineering with physical systems (Hardware, IoT, Robotics, and Digital Twins).
 

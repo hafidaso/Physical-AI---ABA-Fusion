@@ -1,0 +1,268 @@
+/* Global Reset and Theme Constants */
+:root {
+  --color-bg: #0a0f1d;
+  --color-text-ivory: #eaebed;
+  --color-terracotta: #c34a36;
+  --color-panel-bg: rgba(13, 20, 38, 0.75);
+  --color-panel-border: rgba(35, 48, 79, 0.6);
+  --color-zone-fill: rgba(16, 26, 48, 0.4);
+  
+  /* State Colors */
+  --state-idle: #4e8ef7;
+  --state-enroute: #2ecc71;
+  --state-wait: #f1c40f;
+  --state-stop: #e74c3c;
+  --state-arrived: #3498db;
+  --state-offline: #7f8c8d;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text-ivory);
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* 3D Canvas Container */
+.canvas-container {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+/* HUD / Dashboard Overlay */
+.hud-overlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 400px;
+  height: 100%;
+  background: var(--color-panel-bg);
+  border-left: 1px solid var(--color-panel-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 10;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.hud-title {
+  font-size: 22px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  margin-bottom: 5px;
+  color: var(--color-text-ivory);
+}
+
+.hud-subtitle {
+  font-size: 13px;
+  color: #7887a5;
+  margin-bottom: 25px;
+}
+
+/* Telemetry Cards */
+.telemetry-card {
+  background: var(--color-zone-fill);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+  position: relative;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.telemetry-card.alert-active {
+  border-color: var(--color-terracotta);
+  box-shadow: 0 0 10px rgba(195, 74, 54, 0.2);
+}
+
+.card-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 6px;
+  height: 100%;
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.agv-id {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.agv-connectivity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-family: monospace;
+  color: var(--state-enroute);
+}
+
+.agv-connectivity.offline {
+  color: var(--state-offline);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  background-color: currentColor;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.state-tag {
+  font-size: 11px;
+  font-weight: bold;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.state-tag.idle { color: var(--state-idle); }
+.state-tag.en_route { color: var(--state-enroute); }
+.state-tag.wait { color: var(--state-wait); }
+.state-tag.stop { color: var(--state-stop); }
+.state-tag.arrived { color: var(--state-arrived); }
+
+.card-divider {
+  border: 0;
+  height: 1px;
+  background: var(--color-panel-border);
+  margin: 12px 0;
+}
+
+/* Metrics Grid */
+.metrics-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.metric-item {
+  flex: 1;
+}
+
+.metric-item.right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.metric-label {
+  font-size: 12px;
+  color: #7887a5;
+  margin-bottom: 4px;
+}
+
+.metric-value-mono {
+  font-family: monospace;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+/* Flat Progress Bars */
+.progress-bar-bg {
+  width: 130px;
+  height: 6px;
+  background-color: #192337;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* Blinking Alert Warning Banner */
+.zone-x-warning {
+  color: var(--color-terracotta);
+  font-family: monospace;
+  font-size: 13px;
+  font-weight: bold;
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  animation: blinker 1s linear infinite;
+}
+
+@keyframes blinker {
+  50% { opacity: 0; }
+}
+
+/* Bottom Stats Panel */
+.gateways-panel {
+  background: var(--color-zone-fill);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 12px;
+  padding: 14px;
+  margin-top: auto;
+}
+
+.gateways-title {
+  font-size: 13px;
+  font-weight: bold;
+  margin-bottom: 10px;
+  letter-spacing: 0.5px;
+}
+
+.gateway-line {
+  font-family: monospace;
+  font-size: 11px;
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.gateway-line.ok { color: var(--state-enroute); }
+.gateway-line.pending { color: var(--state-wait); }
+.gateway-line.err { color: var(--color-terracotta); }
+
+/* Left Map Coordinates overlay */
+.map-legend {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  background: rgba(10, 15, 30, 0.6);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 11px;
+  color: #7887a5;
+  z-index: 10;
+  pointer-events: none;
+  font-family: monospace;
+}
