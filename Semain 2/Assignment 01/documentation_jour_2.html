@@ -17,7 +17,7 @@
             font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             line-height: 1.6;
             color: var(--text-color);
-            background-color: var(--bg-color);
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); /* Blue gradient */
             margin: 0;
             padding: 0;
         }
@@ -192,6 +192,7 @@ R2 S:0    B:100%</code></pre>
         
         <h3>A. Diagramme d'Architecture Système</h3>
         <p>Le système est divisé en trois couches : la Simulation (Cerveau), le Jumeau Numérique 3D (Interface), et le Matériel Physique (Actionneurs).</p>
+        <img src="file:///Users/hafida/Documents/Physical-AI---ABA-Fusion/Semain%202/Diagramme%20d'Architecture%20Syst%C3%A8me.png" alt="Architecture" style="width:100%; border-radius: 8px; margin: 15px 0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
         <div class="mermaid">
         graph TD
             subgraph "Couche Physique (Arduino C++)"
@@ -214,6 +215,7 @@ R2 S:0    B:100%</code></pre>
 
         <h3>B. Diagramme de Flux de Données (Séquence)</h3>
         <p>Ce diagramme illustre le flux en temps réel, de la prise de décision logique jusqu'à la rotation physique des roues.</p>
+        <img src="file:///Users/hafida/Documents/Physical-AI---ABA-Fusion/Semain%202/Diagramme%20de%20Flux%20de%20Donn%C3%A9es%20-%20S%C3%A9quence.png" alt="Sequence" style="width:100%; border-radius: 8px; margin: 15px 0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
         <div class="mermaid">
         sequenceDiagram
             participant AGV as AGV Agent (Python)
