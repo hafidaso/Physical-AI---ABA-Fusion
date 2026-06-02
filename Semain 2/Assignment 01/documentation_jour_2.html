@@ -10,12 +10,15 @@
         }
         
         :root {
-            --primary-color: #60a5fa;
-            --secondary-color: #3b82f6;
-            --text-color: #e2e8f0;
-            --bg-color: #020617; /* Ultra dark blue */
-            --container-bg: #020617;
-            --border-color: #1e293b;
+            --primary-color: #4e8ef7; /* state-idle */
+            --secondary-color: #3498db; /* state-arrived */
+            --text-color: #eaebed; /* color-text-ivory */
+            --bg-color: #0a0f1d; /* color-bg */
+            --container-bg: #0a0f1d; /* match bg */
+            --border-color: #23304f; /* color-panel-border */
+            --highlight-bg: #101a30; /* solid color-zone-fill */
+            --highlight-border: #c34a36; /* color-terracotta */
+            --text-muted: #7887a5; /* color-text-muted */
         }
 
         html, body {
@@ -24,12 +27,12 @@
         }
 
         body {
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             line-height: 1.6;
             color: var(--text-color);
-            background-color: transparent;
             margin: 0;
-            padding: 0;
+            padding: 40px; /* Padding inside the page */
+            min-height: 100vh;
         }
 
         .container {
@@ -42,7 +45,7 @@
         }
 
         h1 {
-            color: var(--primary-color);
+            color: var(--text-color);
             border-bottom: 3px solid var(--primary-color);
             padding-bottom: 10px;
             font-size: 2.5em;
@@ -50,7 +53,7 @@
         }
 
         h2 {
-            color: var(--secondary-color);
+            color: var(--primary-color);
             border-bottom: 1px solid var(--border-color);
             padding-bottom: 5px;
             page-break-before: always;
@@ -58,17 +61,19 @@
         }
 
         h3 {
-            color: #475569;
+            color: var(--secondary-color);
             margin-top: 25px;
+            margin-bottom: 10px;
         }
 
         p {
-            margin: 15px 0;
+            margin-bottom: 15px;
+            color: var(--text-color);
         }
 
-        ul {
-            margin: 15px 0;
-            padding-left: 25px;
+        ul, ol {
+            margin-bottom: 15px;
+            padding-left: 20px;
         }
 
         li {
@@ -76,7 +81,7 @@
         }
 
         pre {
-            background-color: #0f172a;
+            background-color: #192337; /* color-progress-bg */
             padding: 15px;
             border-radius: 8px;
             overflow-x: auto;
@@ -84,24 +89,23 @@
         }
 
         code {
-            font-family: 'Courier New', Courier, monospace;
-            background-color: #0f172a;
+            font-family: monospace;
+            background-color: #192337; /* color-progress-bg */
             padding: 2px 5px;
             border-radius: 4px;
             font-size: 0.9em;
-            color: #fca5a5;
+            color: #2ecc71; /* state-enroute */
         }
 
         pre code {
             background-color: transparent;
             color: inherit;
-            padding: 0;
         }
 
         .highlight-box {
-            background-color: #f5f5dc; /* Beige */
-            border-left: 4px solid #9ca3af; /* Gray border */
-            color: #4b5563; /* Dark gray text for readability */
+            background-color: var(--highlight-bg);
+            border-left: 4px solid var(--highlight-border);
+            color: var(--text-color);
             padding: 15px;
             margin: 20px 0;
             border-radius: 4px;
@@ -109,11 +113,11 @@
 
         .footer {
             margin-top: 50px;
-            text-align: center;
-            color: #64748b;
-            font-size: 0.9em;
-            border-top: 1px solid var(--border-color);
             padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+            font-size: 0.9em;
+            color: var(--text-muted);
         }
     </style>
 </head>
@@ -248,64 +252,64 @@ R2 S:0    B:100%</code></pre>
         </div>
 
         <h2>7. Tableau Récapitulatif des Protocoles de Communication</h2>
-        <table style="width:100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 25px;">
-            <tr style="background-color: var(--primary-color); color: white;">
-                <th style="padding: 10px; border: 1px solid #ccc;">Protocole</th>
-                <th style="padding: 10px; border: 1px solid #ccc;">Composants Connectés</th>
-                <th style="padding: 10px; border: 1px solid #ccc;">Fréquence / Vitesse</th>
-                <th style="padding: 10px; border: 1px solid #ccc;">Type de Données</th>
+        <table style="width:100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 25px; border: 1px solid var(--border-color);">
+            <tr style="background-color: var(--highlight-bg); color: var(--text-color);">
+                <th style="padding: 10px; border: 1px solid var(--border-color);">Protocole</th>
+                <th style="padding: 10px; border: 1px solid var(--border-color);">Composants Connectés</th>
+                <th style="padding: 10px; border: 1px solid var(--border-color);">Fréquence / Vitesse</th>
+                <th style="padding: 10px; border: 1px solid var(--border-color);">Type de Données</th>
             </tr>
             <tr>
-                <td style="padding: 10px; border: 1px solid #ccc;"><strong>WebSocket</strong></td>
-                <td style="padding: 10px; border: 1px solid #ccc;">Simulateur Python ↔ React 3D Frontend</td>
-                <td style="padding: 10px; border: 1px solid #ccc;">10 Hz (Toutes les 0.1s)</td>
-                <td style="padding: 10px; border: 1px solid #ccc;">JSON (Télémétrie complète, Positions, Batterie)</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);"><strong>WebSocket</strong></td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">Simulateur Python ↔ React 3D Frontend</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">10 Hz (Toutes les 0.1s)</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">JSON (Télémétrie complète, Positions, Batterie)</td>
             </tr>
             <tr>
-                <td style="padding: 10px; border: 1px solid #ccc;"><strong>Serial (UART)</strong></td>
-                <td style="padding: 10px; border: 1px solid #ccc;">Python Bridge ↔ Arduino Uno</td>
-                <td style="padding: 10px; border: 1px solid #ccc;">9600 Bauds</td>
-                <td style="padding: 10px; border: 1px solid #ccc;">String CSV ("m1,m2,m3,m4\n")</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);"><strong>Serial (UART)</strong></td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">Python Bridge ↔ Arduino Uno</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">9600 Bauds</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">String CSV ("m1,m2,m3,m4\n")</td>
             </tr>
             <tr>
-                <td style="padding: 10px; border: 1px solid #ccc;"><strong>I2C</strong></td>
-                <td style="padding: 10px; border: 1px solid #ccc;">Arduino Uno ↔ Écran LCD 1602</td>
-                <td style="padding: 10px; border: 1px solid #ccc;">Sur Changement d'état</td>
-                <td style="padding: 10px; border: 1px solid #ccc;">Texte (16 caractères par ligne)</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);"><strong>I2C</strong></td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">Arduino Uno ↔ Écran LCD 1602</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">Sur Changement d'état</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">Texte (16 caractères par ligne)</td>
             </tr>
             <tr>
-                <td style="padding: 10px; border: 1px solid #ccc;"><strong>PWM & GPIO</strong></td>
-                <td style="padding: 10px; border: 1px solid #ccc;">Arduino Uno ↔ Drivers Moteurs (TB717A3)</td>
-                <td style="padding: 10px; border: 1px solid #ccc;">Continu</td>
-                <td style="padding: 10px; border: 1px solid #ccc;">Signaux Électriques (0-255 Analog, HIGH/LOW Digital)</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);"><strong>PWM & GPIO</strong></td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">Arduino Uno ↔ Drivers Moteurs (TB717A3)</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">Continu</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">Signaux Électriques (0-255 Analog, HIGH/LOW Digital)</td>
             </tr>
         </table>
 
         <h2>8. Registre des Risques et Impacts Analytiques</h2>
-        <table style="width:100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 25px;">
-            <tr style="background-color: #be123c; color: white;">
-                <th style="padding: 10px; border: 1px solid #ccc;">Risque Identifié</th>
-                <th style="padding: 10px; border: 1px solid #ccc;">Niveau</th>
-                <th style="padding: 10px; border: 1px solid #ccc;">Impact sur le Système</th>
-                <th style="padding: 10px; border: 1px solid #ccc;">Mitigation Actuelle / Raison</th>
+        <table style="width:100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 25px; border: 1px solid var(--border-color);">
+            <tr style="background-color: rgba(195, 74, 54, 0.2); color: var(--text-color);">
+                <th style="padding: 10px; border: 1px solid var(--border-color); color: var(--highlight-border);">Risque Identifié</th>
+                <th style="padding: 10px; border: 1px solid var(--border-color);">Niveau</th>
+                <th style="padding: 10px; border: 1px solid var(--border-color);">Impact sur le Système</th>
+                <th style="padding: 10px; border: 1px solid var(--border-color);">Mitigation Actuelle / Raison</th>
             </tr>
             <tr>
-                <td style="padding: 10px; border: 1px solid #ccc;"><strong>Absence de Capteur de Batterie Réel</strong></td>
-                <td style="padding: 10px; border: 1px solid #ccc;">Moyen</td>
-                <td style="padding: 10px; border: 1px solid #ccc;">L'écran LCD affiche une valeur fictive fixe. Le simulateur ne peut pas savoir si la batterie physique est réellement vide, ce qui pourrait causer un arrêt inattendu du robot physique.</td>
-                <td style="padding: 10px; border: 1px solid #ccc;">Pour le moment, les valeurs de batterie ont été fixées en dur dans le C++ (<code>BATTERY_1_LEVEL = 80</code>) pour permettre les tests d'affichage sur le LCD 1602.</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);"><strong>Absence de Capteur de Batterie Réel</strong></td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">Moyen</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">L'écran LCD affiche une valeur fictive fixe. Le simulateur ne peut pas savoir si la batterie physique est réellement vide, ce qui pourrait causer un arrêt inattendu du robot physique.</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">Pour le moment, les valeurs de batterie ont été fixées en dur dans le C++ (<code>BATTERY_1_LEVEL = 80</code>) pour permettre les tests d'affichage sur le LCD 1602.</td>
             </tr>
             <tr>
-                <td style="padding: 10px; border: 1px solid #ccc;"><strong>Désynchronisation Série (UART)</strong></td>
-                <td style="padding: 10px; border: 1px solid #ccc;">Faible</td>
-                <td style="padding: 10px; border: 1px solid #ccc;">Les commandes moteurs peuvent arriver corrompues, entraînant un mouvement erratique.</td>
-                <td style="padding: 10px; border: 1px solid #ccc;">Utilisation de <code>sscanf</code> strict avec format <code>%d,%d,%d,%d</code> et d'un timeout très court (10ms) sur l'Arduino.</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);"><strong>Désynchronisation Série (UART)</strong></td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">Faible</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">Les commandes moteurs peuvent arriver corrompues, entraînant un mouvement erratique.</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">Utilisation de <code>sscanf</code> strict avec format <code>%d,%d,%d,%d</code> et d'un timeout très court (10ms) sur l'Arduino.</td>
             </tr>
             <tr>
-                <td style="padding: 10px; border: 1px solid #ccc;"><strong>Boucle Ouverte (Pas de retour encodeur)</strong></td>
-                <td style="padding: 10px; border: 1px solid #ccc;">Élevé</td>
-                <td style="padding: 10px; border: 1px solid #ccc;">Le jumeau numérique suppose que le robot physique a parfaitement effectué sa rotation différentielle. En réalité, le glissement des roues peut créer un décalage.</td>
-                <td style="padding: 10px; border: 1px solid #ccc;">Assumé dans ce prototype. Le simulateur dicte la vérité absolue au détriment de l'odométrie physique.</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);"><strong>Boucle Ouverte (Pas de retour encodeur)</strong></td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">Élevé</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">Le jumeau numérique suppose que le robot physique a parfaitement effectué sa rotation différentielle. En réalité, le glissement des roues peut créer un décalage.</td>
+                <td style="padding: 10px; border: 1px solid var(--border-color);">Assumé dans ce prototype. Le simulateur dicte la vérité absolue au détriment de l'odométrie physique.</td>
             </tr>
         </table>
 
