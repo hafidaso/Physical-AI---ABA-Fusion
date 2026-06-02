@@ -23,6 +23,9 @@ GLOBAL_STATE = {
 # Dictionnaire global pour retrouver les AGV actifs lors d'un aiguillage manuel
 AGV_FLEET = {}
 
+# Etat global pour l'AGV physique (recu via WebSocket)
+PHYSICAL_AGV_STATE = None
+
 async def register(websocket):
     """Enregistre un nouveau client WebSocket et écoute les commandes envoyées par l'IHM."""
     CONNECTED_CLIENTS.add(websocket)
@@ -46,6 +49,9 @@ async def register(websocket):
                         if not GLOBAL_STATE["emergency_stop"] and not GLOBAL_STATE["paused"]:
                             agv_instance.start_mission(target)
                             print(f"✈️ Manual dispatch via WS: {agv_id} -> {target}")
+                elif command == "update_physical":
+                    global PHYSICAL_AGV_STATE
+                    PHYSICAL_AGV_STATE = data.get("agent")
             except Exception as e:
                 print(f"Error handling WS command: {e}")
     except websockets.exceptions.ConnectionClosed:
@@ -102,11 +108,15 @@ async def simulation_loop():
             payload2 = agv2.get_telemetry_payload()
             
             # Envoi des données en temps réel au jumeau numérique 3D
+            twin_agents = [payload1, payload2]
+            if PHYSICAL_AGV_STATE is not None:
+                twin_agents.append(PHYSICAL_AGV_STATE)
+                
             twin_payload = {
                 "timestamp": time.time(),
                 "emergency_stop": GLOBAL_STATE["emergency_stop"],
                 "paused": GLOBAL_STATE["paused"],
-                "agents": [payload1, payload2]
+                "agents": twin_agents
             }
             await broadcast(json.dumps(twin_payload))
             
