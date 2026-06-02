@@ -5,30 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Documentation Jour 2 - AGV Fleet Simulator</title>
     <style>
+        @page {
+            margin: 0; /* Remove white margins entirely */
+        }
+        
         :root {
-            --primary-color: #2563eb;
-            --secondary-color: #1e40af;
-            --text-color: #333;
-            --bg-color: #f8fafc;
-            --border-color: #e2e8f0;
+            --primary-color: #60a5fa;
+            --secondary-color: #3b82f6;
+            --text-color: #e2e8f0;
+            --bg-color: #020617; /* Ultra dark blue */
+            --container-bg: #020617;
+            --border-color: #1e293b;
+        }
+
+        html, body {
+            background-color: var(--bg-color);
+            -webkit-print-color-adjust: exact;
         }
 
         body {
             font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             line-height: 1.6;
             color: var(--text-color);
-            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); /* Blue gradient */
+            background-color: transparent;
             margin: 0;
             padding: 0;
         }
 
         .container {
             max-width: 900px;
-            margin: 40px auto;
-            background: white;
+            margin: 0 auto;
+            background-color: var(--container-bg);
             padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border-radius: 0;
+            box-shadow: none;
         }
 
         h1 {
@@ -41,9 +51,10 @@
 
         h2 {
             color: var(--secondary-color);
-            margin-top: 30px;
             border-bottom: 1px solid var(--border-color);
             padding-bottom: 5px;
+            page-break-before: always;
+            padding-top: 60px; /* Fake margin at the top of the PDF page */
         }
 
         h3 {
@@ -64,22 +75,21 @@
             margin-bottom: 8px;
         }
 
-        code {
-            background-color: #f1f5f9;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 0.9em;
-            color: #be123c;
-        }
-
         pre {
-            background-color: #1e293b;
-            color: #f8fafc;
+            background-color: #0f172a;
             padding: 15px;
             border-radius: 8px;
             overflow-x: auto;
+            border: 1px solid var(--border-color);
+        }
+
+        code {
             font-family: 'Courier New', Courier, monospace;
+            background-color: #0f172a;
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #fca5a5;
         }
 
         pre code {
@@ -89,11 +99,12 @@
         }
 
         .highlight-box {
-            background-color: #eff6ff;
-            border-left: 4px solid var(--primary-color);
+            background-color: #f5f5dc; /* Beige */
+            border-left: 4px solid #9ca3af; /* Gray border */
+            color: #4b5563; /* Dark gray text for readability */
             padding: 15px;
             margin: 20px 0;
-            border-radius: 0 8px 8px 0;
+            border-radius: 4px;
         }
 
         .footer {
@@ -108,7 +119,12 @@
 </head>
 <body>
     <div class="container">
-        <h1>Documentation Jour 2 : AGV Fleet Simulator</h1>
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid var(--primary-color); padding-bottom: 10px; margin-bottom: 20px;">
+            <h1 style="border-bottom: none; margin-bottom: 0; padding-bottom: 0;">Documentation Jour 2 - AGV Fleet Simulator</h1>
+            <img src="file:///Users/hafida/Documents/Physical-AI---ABA-Fusion/Semain%202/glfmZ18HjK28FyARiQJNDHHx0.svg" alt="ABA Fusion Logo" style="height: 60px;">
+        </div>
+        
+        <h2>1. Objectif de l'Étape 2</h2>
         <p><strong>Projet :</strong> Physical AI - ABA Fusion | <strong>Auteur :</strong> Hafida Belayd</p>
 
         <div class="highlight-box">
@@ -215,7 +231,7 @@ R2 S:0    B:100%</code></pre>
 
         <h3>B. Diagramme de Flux de Données (Séquence)</h3>
         <p>Ce diagramme illustre le flux en temps réel, de la prise de décision logique jusqu'à la rotation physique des roues.</p>
-        <img src="file:///Users/hafida/Documents/Physical-AI---ABA-Fusion/Semain%202/Diagramme%20de%20Flux%20de%20Donn%C3%A9es%20-%20S%C3%A9quence.png" alt="Sequence" style="width:100%; border-radius: 8px; margin: 15px 0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+        <img src="file:///Users/hafida/Documents/Physical-AI---ABA-Fusion/Semain%202/Assignment%2001/Diagramme%20de%20Flux%20de%20Donn%C3%A9es.png" alt="Sequence" style="width:100%; border-radius: 8px; margin: 15px 0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
         <div class="mermaid">
         sequenceDiagram
             participant AGV as AGV Agent (Python)
@@ -306,7 +322,7 @@ R2 S:0    B:100%</code></pre>
         </div>
         
         <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-        <script>mermaid.initialize({startOnLoad:true});</script>
+        <script>mermaid.initialize({startOnLoad:true, theme: 'dark'});</script>
     </div>
 </body>
 </html>
