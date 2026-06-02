@@ -144,7 +144,7 @@
         <p>Le fichier <code>physical_agv_controller.py</code> se connecte au flux WebSocket du simulateur (port <code>8765</code>). Il extrait les vitesses des moteurs (<code>m1, m2, m3, m4</code>) calculées en temps réel et les envoie via le port Série (USB) à l'Arduino.</p>
 
         <h3>4.2 Configuration Arduino (C++)</h3>
-        <p>Le script <code>arduino_agv.ino</code> pilote directement les contrôleurs de moteurs (type L298N) selon les spécifications suivantes :</p>
+        <p>Le script <code>arduino_agv.ino</code> pilote directement les contrôleurs de moteurs (type TB717A3) selon les spécifications suivantes :</p>
         <ul>
             <li><strong>AGV-01 (Driver A) :</strong> Moteur Gauche (PWMA: <code>3</code>, AIN1: <code>2</code>, AIN2: <code>4</code>) | Moteur Droit (PWMA: <code>5</code>, AIN1: <code>A0</code>, AIN2: <code>A1</code>).</li>
             <li><strong>AGV-02 (Driver B) :</strong> Moteur Gauche (PWMA: <code>9</code>, AIN1: <code>11</code>, AIN2: <code>10</code>) | Moteur Droit (PWMA: <code>6</code>, AIN1: <code>12</code>, AIN2: <code>13</code>).</li>
@@ -195,8 +195,8 @@ R2 S:0    B:100%</code></pre>
         <div class="mermaid">
         graph TD
             subgraph "Couche Physique (Arduino C++)"
-                A[Arduino Uno] -->|PWM / Dir| M1[Moteur Driver L298N - A]
-                A -->|PWM / Dir| M2[Moteur Driver L298N - B]
+                A[Arduino Uno] -->|PWM / Dir| M1[Moteur Driver TB717A3 - A]
+                A -->|PWM / Dir| M2[Moteur Driver TB717A3 - B]
                 A -->|I2C| LCD[Ecran LCD 1602]
             end
             
@@ -257,7 +257,7 @@ R2 S:0    B:100%</code></pre>
             </tr>
             <tr>
                 <td style="padding: 10px; border: 1px solid #ccc;"><strong>PWM & GPIO</strong></td>
-                <td style="padding: 10px; border: 1px solid #ccc;">Arduino Uno ↔ Drivers Moteurs (L298N)</td>
+                <td style="padding: 10px; border: 1px solid #ccc;">Arduino Uno ↔ Drivers Moteurs (TB717A3)</td>
                 <td style="padding: 10px; border: 1px solid #ccc;">Continu</td>
                 <td style="padding: 10px; border: 1px solid #ccc;">Signaux Électriques (0-255 Analog, HIGH/LOW Digital)</td>
             </tr>
