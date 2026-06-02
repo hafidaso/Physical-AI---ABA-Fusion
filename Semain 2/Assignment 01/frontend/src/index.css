@@ -6,6 +6,8 @@
   --color-panel-bg: rgba(13, 20, 38, 0.75);
   --color-panel-border: rgba(35, 48, 79, 0.6);
   --color-zone-fill: rgba(16, 26, 48, 0.4);
+  --color-text-muted: #7887a5;
+  --color-progress-bg: #192337;
   
   /* State Colors */
   --state-idle: #4e8ef7;
@@ -14,6 +16,16 @@
   --state-stop: #e74c3c;
   --state-arrived: #3498db;
   --state-offline: #7f8c8d;
+}
+
+body.light-mode {
+  --color-bg: #f4f6f8;
+  --color-text-ivory: #1a1e29;
+  --color-panel-bg: rgba(255, 255, 255, 0.85);
+  --color-panel-border: rgba(200, 210, 230, 0.8);
+  --color-zone-fill: rgba(240, 245, 255, 0.6);
+  --color-text-muted: #5a667e;
+  --color-progress-bg: rgba(0, 0, 0, 0.1);
 }
 
 * {
@@ -75,7 +87,7 @@ body {
 
 .hud-subtitle {
   font-size: 13px;
-  color: #7887a5;
+  color: var(--color-text-muted);
   margin-bottom: 25px;
 }
 
@@ -151,6 +163,7 @@ body {
 .state-tag.idle { color: var(--state-idle); }
 .state-tag.en_route { color: var(--state-enroute); }
 .state-tag.wait { color: var(--state-wait); }
+.state-tag.yielding { color: var(--state-wait); }
 .state-tag.stop { color: var(--state-stop); }
 .state-tag.arrived { color: var(--state-arrived); }
 
@@ -180,7 +193,7 @@ body {
 
 .metric-label {
   font-size: 12px;
-  color: #7887a5;
+  color: var(--color-text-muted);
   margin-bottom: 4px;
 }
 
@@ -194,7 +207,7 @@ body {
 .progress-bar-bg {
   width: 130px;
   height: 6px;
-  background-color: #192337;
+  background-color: var(--color-progress-bg);
   border-radius: 3px;
   overflow: hidden;
   margin-top: 4px;
@@ -261,7 +274,7 @@ body {
   border-radius: 8px;
   padding: 10px;
   font-size: 11px;
-  color: #7887a5;
+  color: var(--color-text-muted);
   z-index: 10;
   pointer-events: none;
   font-family: monospace;

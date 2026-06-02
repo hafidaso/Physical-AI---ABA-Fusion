@@ -266,20 +266,20 @@ function AGVModel({ agvData }) {
   );
 }
 
-export default function Warehouse3D({ agvsData }) {
+export default function Warehouse3D({ agvsData, lightMode }) {
   return (
     <group>
       {/* Ambient and Directional Lights for clean 3D shadows */}
-      <ambientLight intensity={0.4} />
+      <ambientLight intensity={lightMode ? 0.8 : 0.4} />
       <directionalLight 
         position={[8, 12, 5]} 
-        intensity={0.9} 
+        intensity={lightMode ? 1.5 : 0.9} 
         castShadow 
         shadow-mapSize={[1024, 1024]} 
       />
       
       {/* Subtle floor grid */}
-      <gridHelper args={[8.2, 82, '#353050', '#12182c']} position={[0, 0, 0]} />
+      <gridHelper args={[8.2, 82, lightMode ? '#cbd5e1' : '#353050', lightMode ? '#e2e8f0' : '#12182c']} position={[0, 0, 0]} />
       
       {/* Lane Lines */}
       <LaneLines />

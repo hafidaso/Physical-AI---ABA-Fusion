@@ -44,6 +44,11 @@ class AGV:
         self.mission_id = "N/A"
         self.last_state_change = time.time()
         
+        # Differential drive parameters
+        self.angle_deg = 0.0
+        self.motor_left_pct = 0.0
+        self.motor_right_pct = 0.0
+        
         # Indique si le robot est en train de recharger ses batteries
         self.is_charging = False
         
@@ -78,6 +83,8 @@ class AGV:
         else:
             self.state = "IDLE"
             self.speed_mps = 0.0
+            self.motor_left_pct = 0.0
+            self.motor_right_pct = 0.0
 
     def update(self, dt: float, other_agv: 'AGV', traffic_controller: ZoneXTrafficController, emergency_stop: bool = False):
         """
@@ -89,6 +96,8 @@ class AGV:
         if emergency_stop:
             self.state = "STOP"
             self.speed_mps = 0.0
+            self.motor_left_pct = 0.0
+            self.motor_right_pct = 0.0
             # Le moteur refroidit tout doucement lorsqu'il est à l'arrêt
             self.temperature_c = max(24.0, self.temperature_c - 0.05 * dt)
             return
@@ -124,7 +133,6 @@ class AGV:
                 self.start_mission("R")
 
         # 4. Détection d'obstacles (distance par rapport à l'autre robot AGV)
-        # On calcule la distance et la direction relative entre les deux robots
         dx = other_agv.x - self.x
         dy = other_agv.y - self.y
         dist_px = math.sqrt(dx**2 + dy**2)
@@ -134,7 +142,9 @@ class AGV:
         
         # On vérifie si l'autre AGV est situé devant nous (dans notre cône de vision de 45 degrés)
         is_obstacle_ahead = False
-        if self.state == "EN_ROUTE" and len(self.path) > 0 and self.current_node_idx < len(self.path):
+        yielding = False
+        
+        if self.state in ["EN_ROUTE", "STOP", "YIELDING"] and len(self.path) > 0 and self.current_node_idx < len(self.path):
             # Vecteur de direction vers le prochain point du trajet
             target_node = self.path[self.current_node_idx]
             tx, ty = NODES[target_node]
@@ -146,40 +156,50 @@ class AGV:
                 ux, uy = vx / v_len, vy / v_len
                 # Produit scalaire pour savoir si l'autre robot est dans notre champ de vision frontal
                 dot = (dx * ux + dy * uy) / dist_px
-                # Si le produit scalaire est supérieur à cos(45°/2), l'autre AGV est bien dans notre cône de vision
-                if dot > 0.707:
+                
+                # Si le produit scalaire est supérieur à 0.6, l'autre AGV est bien dans notre cône de vision
+                if dot > 0.6:
+                    align = 0.0
                     # On vérifie s'ils se croisent en sens inverse (pour éviter de se bloquer mutuellement)
-                    is_opposite = False
-                    if other_agv.state == "EN_ROUTE" and other_agv.path and other_agv.current_node_idx < len(other_agv.path):
+                    if other_agv.state in ["EN_ROUTE", "STOP", "YIELDING"] and other_agv.path and other_agv.current_node_idx < len(other_agv.path):
                         otx, oty = NODES[other_agv.path[other_agv.current_node_idx]]
                         ovx = otx - other_agv.x
                         ovy = oty - other_agv.y
                         ov_len = math.sqrt(ovx**2 + ovy**2)
                         if ov_len > 0:
-                          oux, ouy = ovx / ov_len, ovy / ov_len
-                          align = ux * oux + uy * ouy
-                          if align < -0.5:
-                              is_opposite = True
-                    
-                    if not is_opposite:
+                            oux, ouy = ovx / ov_len, ovy / ov_len
+                            align = ux * oux + uy * ouy
+                            
+                    if align < -0.5:
+                        # Face-à-face (directions opposées)
+                        # Règle de priorité: AGV-02 cède le passage à AGV-01
+                        if self.agv_id > other_agv.agv_id:
+                            is_obstacle_ahead = True
+                            yielding = True
+                    else:
+                        # Même direction ou perpendiculaire, celui qui est derrière s'arrête
                         is_obstacle_ahead = True
 
         # Handle stopping for close obstacles
         obstacle_stop = False
-        if is_obstacle_ahead and self.distance_front_cm < 80.0:
+        if is_obstacle_ahead and self.distance_front_cm < 110.0:
             # Arrêt de sécurité ! On attend que l'autre robot libère la voie
             obstacle_stop = True
             
         # 5. Suivi du chemin, passage du carrefour Zone X ou recharge
         if obstacle_stop:
-            self.state = "STOP"
+            self.state = "YIELDING" if yielding else "STOP"
             self.speed_mps = 0.0
+            self.motor_left_pct = 0.0
+            self.motor_right_pct = 0.0
         else:
-            if self.state in ["EN_ROUTE", "STOP"]:
+            if self.state in ["EN_ROUTE", "STOP", "YIELDING"]:
                 self.navigate_path(dt, traffic_controller)
             elif self.state == "WAIT":
                 if self.is_charging:
                     self.speed_mps = 0.0
+                    self.motor_left_pct = 0.0
+                    self.motor_right_pct = 0.0
                     if self.battery_pct >= 100.0:
                         self.is_charging = False
                         self.state = "ARRIVED"
@@ -190,6 +210,8 @@ class AGV:
                     self.navigate_path(dt, traffic_controller)
             elif self.state == "ARRIVED":
                 self.speed_mps = 0.0
+                self.motor_left_pct = 0.0
+                self.motor_right_pct = 0.0
                 # On marque une pause de 1.5s à l'arrivée avant de redevenir disponible (ou de commencer à charger si on est en R)
                 if time.time() - self.last_state_change > 1.5:
                     if self.target_zone == "R":
@@ -242,6 +264,29 @@ class AGV:
         speed_px_s = self.max_speed_mps * 100.0
         step = speed_px_s * dt
         
+        # Check if we need to rotate first
+        target_angle_deg = math.degrees(math.atan2(dy, dx))
+        angle_diff = (target_angle_deg - self.angle_deg + 180) % 360 - 180
+        
+        if dist > 2.0 and abs(angle_diff) > 2.0:
+            # Rotate in place
+            rot_step = 180.0 * dt  # 180 degrees per second
+            if abs(angle_diff) <= rot_step:
+                self.angle_deg = target_angle_deg
+            else:
+                if angle_diff > 0:
+                    self.angle_deg += rot_step
+                    self.motor_left_pct = 1.0
+                    self.motor_right_pct = -1.0
+                else:
+                    self.angle_deg -= rot_step
+                    self.motor_left_pct = -1.0
+                    self.motor_right_pct = 1.0
+            
+            self.angle_deg = (self.angle_deg + 180) % 360 - 180
+            self.speed_mps = self.max_speed_mps  # Keep speed > 0 for battery logic
+            return  # Wait until rotation completes before translating
+            
         if dist <= step:
             # On est arrivé pile sur le nœud cible !
             self.x = float(tx)
@@ -262,6 +307,8 @@ class AGV:
                 self.state = "ARRIVED"
                 self.last_state_change = time.time()
                 self.speed_mps = 0.0
+                self.motor_left_pct = 0.0
+                self.motor_right_pct = 0.0
                 self.path = []
                 # Arrivé au terminus ! On met à jour notre zone courante
                 if target_node in ['A', 'B', 'C', 'D', 'R']:
@@ -269,6 +316,8 @@ class AGV:
             else:
                 self.state = "EN_ROUTE"
                 self.speed_mps = self.max_speed_mps
+                self.motor_left_pct = 1.0
+                self.motor_right_pct = 1.0
         else:
             # On avance vers le nœud intermédiaire
             self.x += (dx / dist) * step
@@ -276,6 +325,8 @@ class AGV:
             self.total_distance_m += step / 100.0
             self.state = "EN_ROUTE"
             self.speed_mps = self.max_speed_mps
+            self.motor_left_pct = 1.0
+            self.motor_right_pct = 1.0
 
     def get_render_position(self, offset_px: float = 12.0) -> Tuple[float, float]:
         """

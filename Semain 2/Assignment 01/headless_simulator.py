@@ -23,9 +23,6 @@ GLOBAL_STATE = {
 # Dictionnaire global pour retrouver les AGV actifs lors d'un aiguillage manuel
 AGV_FLEET = {}
 
-# Etat global pour l'AGV physique (recu via WebSocket)
-PHYSICAL_AGV_STATE = None
-
 async def register(websocket):
     """Enregistre un nouveau client WebSocket et écoute les commandes envoyées par l'IHM."""
     CONNECTED_CLIENTS.add(websocket)
@@ -49,9 +46,6 @@ async def register(websocket):
                         if not GLOBAL_STATE["emergency_stop"] and not GLOBAL_STATE["paused"]:
                             agv_instance.start_mission(target)
                             print(f"✈️ Manual dispatch via WS: {agv_id} -> {target}")
-                elif command == "update_physical":
-                    global PHYSICAL_AGV_STATE
-                    PHYSICAL_AGV_STATE = data.get("agent")
             except Exception as e:
                 print(f"Error handling WS command: {e}")
     except websockets.exceptions.ConnectionClosed:
@@ -89,12 +83,12 @@ async def simulation_loop():
         while True:
             # 1. Mise à jour de la physique si la simulation n'est pas en pause
             if not GLOBAL_STATE["paused"]:
-                # Si le robot n'a rien à faire et qu'il n'y a pas d'arrêt d'urgence, on lui donne une mission
+                agv1.max_speed_mps = 1.0 # default autonomous speed
                 if agv1.state == "IDLE" and not GLOBAL_STATE["emergency_stop"]:
-                    # On choisit une zone au hasard différente de sa zone de départ pour diversifier les trajets
                     choices = [z for z in ['A', 'B', 'C', 'D'] if z != agv1.current_zone]
                     agv1.start_mission(random.choice(choices))
-                    
+                        
+                agv2.max_speed_mps = 1.0
                 if agv2.state == "IDLE" and not GLOBAL_STATE["emergency_stop"]:
                     choices = [z for z in ['A', 'B', 'C', 'D'] if z != agv2.current_zone]
                     agv2.start_mission(random.choice(choices))
@@ -107,16 +101,24 @@ async def simulation_loop():
             payload1 = agv1.get_telemetry_payload()
             payload2 = agv2.get_telemetry_payload()
             
+            # Calcul des vitesses finales pour les moteurs
+            agv1_m1 = int(agv1.motor_left_pct * 255)
+            agv1_m2 = int(agv1.motor_right_pct * 255)
+            agv2_m3 = int(agv2.motor_left_pct * 255)
+            agv2_m4 = int(agv2.motor_right_pct * 255)
+            
             # Envoi des données en temps réel au jumeau numérique 3D
-            twin_agents = [payload1, payload2]
-            if PHYSICAL_AGV_STATE is not None:
-                twin_agents.append(PHYSICAL_AGV_STATE)
-                
             twin_payload = {
                 "timestamp": time.time(),
                 "emergency_stop": GLOBAL_STATE["emergency_stop"],
                 "paused": GLOBAL_STATE["paused"],
-                "agents": twin_agents
+                "agents": [payload1, payload2],
+                "motor_speeds": {
+                    "m1": agv1_m1,
+                    "m2": agv1_m2,
+                    "m3": agv2_m3,
+                    "m4": agv2_m4
+                }
             }
             await broadcast(json.dumps(twin_payload))
             

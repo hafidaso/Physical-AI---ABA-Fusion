@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentation Jour 2 - AGV Fleet Simulator</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #1e40af;
+            --text-color: #333;
+            --bg-color: #f8fafc;
+            --border-color: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 40px auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        h1 {
+            color: var(--primary-color);
+            border-bottom: 3px solid var(--primary-color);
+            padding-bottom: 10px;
+            font-size: 2.5em;
+            margin-top: 0;
+        }
+
+        h2 {
+            color: var(--secondary-color);
+            margin-top: 30px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px;
+        }
+
+        h3 {
+            color: #475569;
+            margin-top: 25px;
+        }
+
+        p {
+            margin: 15px 0;
+        }
+
+        ul {
+            margin: 15px 0;
+            padding-left: 25px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        code {
+            background-color: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9em;
+            color: #be123c;
+        }
+
+        pre {
+            background-color: #1e293b;
+            color: #f8fafc;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        pre code {
+            background-color: transparent;
+            color: inherit;
+            padding: 0;
+        }
+
+        .highlight-box {
+            background-color: #eff6ff;
+            border-left: 4px solid var(--primary-color);
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .footer {
+            margin-top: 50px;
+            text-align: center;
+            color: #64748b;
+            font-size: 0.9em;
+            border-top: 1px solid var(--border-color);
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Documentation Jour 2 : AGV Fleet Simulator</h1>
+        <p><strong>Projet :</strong> Physical AI - ABA Fusion | <strong>Auteur :</strong> Hafida Belayd</p>
+
+        <div class="highlight-box">
+            <p><strong>Objectif du Jour 2 :</strong> Cette mise à jour introduit de nouvelles mécaniques avancées pour la flotte d'AGV (Automated Guided Vehicles), notamment la conduite différentielle (Differential Drive), la gestion intelligente des collisions avec des priorités de passage, l'intégration complète avec du matériel physique (Arduino), et une refonte de l'interface utilisateur avec l'ajout du mode Clair/Sombre.</p>
+        </div>
+
+        <h2>1. Conduite Différentielle (Differential Drive Mechanics)</h2>
+        <p>Afin de simuler le comportement réel des robots, les AGV utilisent désormais un modèle cinématique de conduite différentielle :</p>
+        <ul>
+            <li><strong>Rotation sur place :</strong> Lorsqu'un AGV doit changer de direction vers un nouveau point, il s'arrête d'avancer (translation nulle) et effectue une rotation sur place jusqu'à s'aligner parfaitement avec sa cible.</li>
+            <li><strong>Vitesses de roues opposées :</strong> Pendant la rotation, les roues gauche et droite reçoivent des commandes inversées. Par exemple, pour tourner à droite, la roue gauche avance à 100% de vitesse (<code>motor_left_pct = 1.0</code>) et la roue droite recule à 100% (<code>motor_right_pct = -1.0</code>).</li>
+            <li>Cette mise à jour assure que la télémétrie envoyée aux moteurs physiques correspond exactement aux manœuvres requises sur le terrain.</li>
+        </ul>
+
+        <h2>2. Gestion des Collisions et Priorité (Priority Yielding)</h2>
+        <p>La détection d'obstacles a été améliorée pour intégrer des règles de circulation (Traffic Rules) lors des rencontres entre deux robots :</p>
+        <ul>
+            <li><strong>Détection frontale :</strong> Les AGV utilisent un capteur de proximité virtuel (cône de vision de 45 degrés). Si la distance frontale avec un obstacle tombe sous la barre des 110 cm, le robot réagit.</li>
+            <li><strong>Céder le passage :</strong> Si les robots <code>AGV-01</code> et <code>AGV-02</code> se retrouvent face à face dans le même couloir, <code>AGV-02</code> (ayant la priorité la plus basse) passe en état <code>YIELDING</code> (Céder le passage) et s'arrête, laissant à <code>AGV-01</code> l'opportunité de passer.</li>
+        </ul>
+
+        <h2>3. Interface Utilisateur 3D (Thème Clair / Sombre)</h2>
+        <p>Le jumeau numérique 3D (Digital Twin), développé avec <strong>React Three Fiber</strong>, propose désormais une interface adaptative :</p>
+        <ul>
+            <li><strong>Bouton Bascule (Toggle) :</strong> Un bouton 🌓 a été ajouté au tableau de bord. Il permet de passer instantanément du mode Sombre (Dark Mode) au mode Clair (Light Mode).</li>
+            <li><strong>Mise à jour dynamique de l'environnement :</strong> Le changement de thème affecte à la fois les couleurs du HUD (tableau de bord) et l'environnement 3D (intensité des lumières, couleur du brouillard, et couleur de la grille du sol).</li>
+        </ul>
+
+        <h2>4. Intégration du Matériel Physique (Hardware Integration)</h2>
+        <p>Le projet ne se limite plus à la simulation logicielle ; il est maintenant un véritable système cyber-physique (Cyber-Physical System).</p>
+        
+        <h3>4.1 Script Python de Pont (Bridge)</h3>
+        <p>Le fichier <code>physical_agv_controller.py</code> se connecte au flux WebSocket du simulateur (port <code>8765</code>). Il extrait les vitesses des moteurs (<code>m1, m2, m3, m4</code>) calculées en temps réel et les envoie via le port Série (USB) à l'Arduino.</p>
+
+        <h3>4.2 Configuration Arduino (C++)</h3>
+        <p>Le script <code>arduino_agv.ino</code> pilote directement les contrôleurs de moteurs (type L298N) selon les spécifications suivantes :</p>
+        <ul>
+            <li><strong>AGV-01 (Driver A) :</strong> Moteur Gauche (PWMA: <code>3</code>, AIN1: <code>2</code>, AIN2: <code>4</code>) | Moteur Droit (PWMA: <code>5</code>, AIN1: <code>A0</code>, AIN2: <code>A1</code>).</li>
+            <li><strong>AGV-02 (Driver B) :</strong> Moteur Gauche (PWMA: <code>9</code>, AIN1: <code>11</code>, AIN2: <code>10</code>) | Moteur Droit (PWMA: <code>6</code>, AIN1: <code>12</code>, AIN2: <code>13</code>).</li>
+        </ul>
+        <p><strong>Traitement du Signal :</strong> L'Arduino convertit automatiquement les vitesses négatives (venant de la commande de rotation sur place) en inversant la polarité (broches de direction <code>HIGH</code>/<code>LOW</code>) et en appliquant la valeur absolue pour le signal PWM.</p>
+        
+        <h3>4.3 Affichage LCD I2C</h3>
+        <p>Un écran LCD 16x2 est connecté en I2C (adresse <code>0x27</code>) à l'Arduino. Il affiche en temps réel les vitesses actuelles et l'état de la batterie des deux robots, fournissant un retour visuel direct sur le matériel :</p>
+        <pre><code>R1 S:255  B:80 %
+R2 S:0    B:100%</code></pre>
+
+        <h2>5. Architecture Logique et Algorithmique</h2>
+        <p>Le cœur du simulateur repose sur plusieurs algorithmes et modèles logiques assurant une simulation réaliste et autonome :</p>
+        
+        <h3>5.1 Machine à États Finis (State Machine)</h3>
+        <p>Chaque AGV est régi par un automate fini composé des états suivants :</p>
+        <ul>
+            <li><code>IDLE</code> : Le robot est inactif et attend une nouvelle mission. Il planifie automatiquement une destination s'il est laissé libre.</li>
+            <li><code>EN_ROUTE</code> : L'AGV se déplace vers son prochain nœud ou effectue une rotation sur place. La batterie se décharge et la température du moteur augmente.</li>
+            <li><code>WAIT</code> : Attente active. Ce statut est déclenché si l'accès à la zone d'intersection (Zone X) est bloqué par un autre robot (Mutex) ou s'il est en cours de recharge.</li>
+            <li><code>YIELDING</code> : État spécifique d'évitement de collision. L'AGV cède la priorité à un autre AGV sur une trajectoire frontale.</li>
+            <li><code>STOP</code> : Arrêt d'urgence (E-Stop) ou arrêt de sécurité si un obstacle est détecté à très courte distance.</li>
+            <li><code>ARRIVED</code> : L'AGV a atteint sa destination finale et marque une pause avant de repasser en <code>IDLE</code>.</li>
+        </ul>
+
+        <h3>5.2 Navigation et Algorithme de Dijkstra</h3>
+        <p>Le routage est basé sur la théorie des graphes. Les zones (A, B, C, D, R, X) sont représentées comme des nœuds connectés par des arêtes pondérées. L'algorithme de <strong>Dijkstra</strong> (via <code>find_shortest_path</code>) calcule le chemin optimal. Le robot décompose ensuite ce chemin en segments rectilignes, calculant son orientation avec la fonction trigonométrique <code>math.atan2(dy, dx)</code> pour déterminer l'angle cible et ajuster la rotation différentielle.</p>
+
+        <h3>5.3 Contrôleur de Trafic et Exclusion Mutuelle (Mutex)</h3>
+        <p>L'intersection centrale (Zone X) agit comme un goulot d'étranglement. Pour éviter les collisions, la classe <code>ZoneXTrafficController</code> implémente un mécanisme d'exclusion mutuelle (Mutex) :</p>
+        <ul>
+            <li>Avant d'entrer dans le nœud 'X', un AGV appelle <code>request_entry()</code>.</li>
+            <li>Si le verrou est libre, l'AGV obtient le passage (<code>has_zone_x_lock = True</code>). Sinon, il passe en état <code>WAIT</code>.</li>
+            <li>Une fois le nœud 'X' franchi, l'AGV appelle <code>release_zone()</code>, libérant l'intersection pour les autres.</li>
+        </ul>
+
+        <h3>5.4 Simulation Physique et Énergétique</h3>
+        <p>Le jumeau numérique calcule continuellement la physique des composants à une fréquence de 10 Hz (Delta Time <code>dt</code>) :</p>
+        <ul>
+            <li><strong>Batterie :</strong> Diminue de 0.5% par seconde en mouvement, et se recharge de 8% par seconde lorsqu'il est en station (Zone R). En dessous de 20%, l'AGV planifie un retour d'urgence à la station.</li>
+            <li><strong>Thermique :</strong> La température du moteur augmente en charge (max 48.5°C) et diminue au repos (min 24.0°C), ajoutant un léger bruit mathématique (<code>random.uniform</code>) pour simuler les fluctuations réelles des capteurs.</li>
+        </ul>
+
+        <h2>6. Diagrammes d'Architecture et Flux</h2>
+        
+        <h3>A. Diagramme d'Architecture Système</h3>
+        <p>Le système est divisé en trois couches : la Simulation (Cerveau), le Jumeau Numérique 3D (Interface), et le Matériel Physique (Actionneurs).</p>
+        <div class="mermaid">
+        graph TD
+            subgraph "Couche Physique (Arduino C++)"
+                A[Arduino Uno] -->|PWM / Dir| M1[Moteur Driver L298N - A]
+                A -->|PWM / Dir| M2[Moteur Driver L298N - B]
+                A -->|I2C| LCD[Ecran LCD 1602]
+            end
+            
+            subgraph "Couche Cerveau (Python Backend)"
+                S[headless_simulator.py] -->|Algorithmes| AGV[agv_agent.py / Dijkstra / Mutex]
+                S -->|Serial USB| P[physical_agv_controller.py]
+                P -->|UART String| A
+            end
+            
+            subgraph "Couche Interface (React 3D)"
+                W[Serveur WebSocket 8765] <-->|JSON 10Hz| R[Frontend React Three Fiber]
+                S <--> W
+            end
+        </div>
+
+        <h3>B. Diagramme de Flux de Données (Séquence)</h3>
+        <p>Ce diagramme illustre le flux en temps réel, de la prise de décision logique jusqu'à la rotation physique des roues.</p>
+        <div class="mermaid">
+        sequenceDiagram
+            participant AGV as AGV Agent (Python)
+            participant Sim as Simulateur Central
+            participant Bridge as Physical Controller
+            participant Arduino as Arduino Uno
+            participant Hardware as Moteurs & LCD
+            
+            AGV->>Sim: Calcule Rotation (gauche: 100%, droite: -100%)
+            Sim->>Bridge: payload = {m1: 255, m2: -255...}
+            Bridge->>Arduino: Serial Write ("255,-255,0,0\n")
+            Arduino->>Hardware: digitalWrite(LOW) & analogWrite(255)
+            Arduino->>Hardware: Mise à jour LCD ("R1 S:255 B:80%")
+        </div>
+
+        <h2>7. Tableau Récapitulatif des Protocoles de Communication</h2>
+        <table style="width:100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 25px;">
+            <tr style="background-color: var(--primary-color); color: white;">
+                <th style="padding: 10px; border: 1px solid #ccc;">Protocole</th>
+                <th style="padding: 10px; border: 1px solid #ccc;">Composants Connectés</th>
+                <th style="padding: 10px; border: 1px solid #ccc;">Fréquence / Vitesse</th>
+                <th style="padding: 10px; border: 1px solid #ccc;">Type de Données</th>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border: 1px solid #ccc;"><strong>WebSocket</strong></td>
+                <td style="padding: 10px; border: 1px solid #ccc;">Simulateur Python ↔ React 3D Frontend</td>
+                <td style="padding: 10px; border: 1px solid #ccc;">10 Hz (Toutes les 0.1s)</td>
+                <td style="padding: 10px; border: 1px solid #ccc;">JSON (Télémétrie complète, Positions, Batterie)</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border: 1px solid #ccc;"><strong>Serial (UART)</strong></td>
+                <td style="padding: 10px; border: 1px solid #ccc;">Python Bridge ↔ Arduino Uno</td>
+                <td style="padding: 10px; border: 1px solid #ccc;">9600 Bauds</td>
+                <td style="padding: 10px; border: 1px solid #ccc;">String CSV ("m1,m2,m3,m4\n")</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border: 1px solid #ccc;"><strong>I2C</strong></td>
+                <td style="padding: 10px; border: 1px solid #ccc;">Arduino Uno ↔ Écran LCD 1602</td>
+                <td style="padding: 10px; border: 1px solid #ccc;">Sur Changement d'état</td>
+                <td style="padding: 10px; border: 1px solid #ccc;">Texte (16 caractères par ligne)</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border: 1px solid #ccc;"><strong>PWM & GPIO</strong></td>
+                <td style="padding: 10px; border: 1px solid #ccc;">Arduino Uno ↔ Drivers Moteurs (L298N)</td>
+                <td style="padding: 10px; border: 1px solid #ccc;">Continu</td>
+                <td style="padding: 10px; border: 1px solid #ccc;">Signaux Électriques (0-255 Analog, HIGH/LOW Digital)</td>
+            </tr>
+        </table>
+
+        <h2>8. Registre des Risques et Impacts Analytiques</h2>
+        <table style="width:100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 25px;">
+            <tr style="background-color: #be123c; color: white;">
+                <th style="padding: 10px; border: 1px solid #ccc;">Risque Identifié</th>
+                <th style="padding: 10px; border: 1px solid #ccc;">Niveau</th>
+                <th style="padding: 10px; border: 1px solid #ccc;">Impact sur le Système</th>
+                <th style="padding: 10px; border: 1px solid #ccc;">Mitigation Actuelle / Raison</th>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border: 1px solid #ccc;"><strong>Absence de Capteur de Batterie Réel</strong></td>
+                <td style="padding: 10px; border: 1px solid #ccc;">Moyen</td>
+                <td style="padding: 10px; border: 1px solid #ccc;">L'écran LCD affiche une valeur fictive fixe. Le simulateur ne peut pas savoir si la batterie physique est réellement vide, ce qui pourrait causer un arrêt inattendu du robot physique.</td>
+                <td style="padding: 10px; border: 1px solid #ccc;">Pour le moment, les valeurs de batterie ont été fixées en dur dans le C++ (<code>BATTERY_1_LEVEL = 80</code>) pour permettre les tests d'affichage sur le LCD 1602.</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border: 1px solid #ccc;"><strong>Désynchronisation Série (UART)</strong></td>
+                <td style="padding: 10px; border: 1px solid #ccc;">Faible</td>
+                <td style="padding: 10px; border: 1px solid #ccc;">Les commandes moteurs peuvent arriver corrompues, entraînant un mouvement erratique.</td>
+                <td style="padding: 10px; border: 1px solid #ccc;">Utilisation de <code>sscanf</code> strict avec format <code>%d,%d,%d,%d</code> et d'un timeout très court (10ms) sur l'Arduino.</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border: 1px solid #ccc;"><strong>Boucle Ouverte (Pas de retour encodeur)</strong></td>
+                <td style="padding: 10px; border: 1px solid #ccc;">Élevé</td>
+                <td style="padding: 10px; border: 1px solid #ccc;">Le jumeau numérique suppose que le robot physique a parfaitement effectué sa rotation différentielle. En réalité, le glissement des roues peut créer un décalage.</td>
+                <td style="padding: 10px; border: 1px solid #ccc;">Assumé dans ce prototype. Le simulateur dicte la vérité absolue au détriment de l'odométrie physique.</td>
+            </tr>
+        </table>
+
+        <h2>9. Fiche de Recommandations Priorisées</h2>
+        <ol>
+            <li><strong>Intégration d'un Pont Diviseur de Tension (Urgence Haute) :</strong> Remplacer les constantes matérielles de batterie par une lecture analogique (<code>analogRead</code>) de la batterie LiPo via un pont diviseur de tension, puis renvoyer cette valeur via Serial au simulateur Python.</li>
+            <li><strong>Encodeurs Optiques ou Magnétiques (Urgence Moyenne) :</strong> Ajouter des encodeurs sur les roues pour implémenter un PID dans l'Arduino. Cela garantira que les vitesses <code>m1, m2</code> demandées par le simulateur correspondent exactement à la vitesse réelle (Boucle Fermée).</li>
+            <li><strong>Capteurs de Proximité Ultrason (HC-SR04) :</strong> Bien que le simulateur calcule la "distance_front_cm" virtuellement, ajouter des capteurs réels permettrait à l'Arduino de stopper les moteurs indépendamment en cas de perte de connexion Serial.</li>
+            <li><strong>Baud Rate :</strong> Augmenter la vitesse Serial de 9600 à 115200 bauds pour réduire la latence de commande entre le simulateur et l'Arduino.</li>
+        </ol>
+
+        <div class="footer">
+            <p>Document généré pour la Semaine 2 - Assignment 01 | Physical AI - ABA Fusion</p>
+        </div>
+        
+        <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+        <script>mermaid.initialize({startOnLoad:true});</script>
+    </div>
+</body>
+</html>

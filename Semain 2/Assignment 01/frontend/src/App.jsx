@@ -37,6 +37,7 @@ export default function App() {
   const [wsStatus, setWsStatus] = useState("DISCONNECTED");
   const [paused, setPaused] = useState(false);
   const [emergencyStop, setEmergencyStop] = useState(false);
+  const [lightMode, setLightMode] = useState(false);
   const wsRef = useRef(null);
 
   // Establish WebSocket connection with auto-reconnection
@@ -100,6 +101,19 @@ export default function App() {
     }
   };
 
+  // Toggle Light/Dark Mode
+  const toggleLightMode = () => {
+    setLightMode(prev => {
+      const newMode = !prev;
+      if (newMode) {
+        document.body.classList.add('light-mode');
+      } else {
+        document.body.classList.remove('light-mode');
+      }
+      return newMode;
+    });
+  };
+
   // Check if an AGV is in Zone X (for dashboard alert styling)
   const isAgentInZoneX = (agv) => {
     const x = agv.position?.x || 4.0;
@@ -149,14 +163,13 @@ export default function App() {
           camera={{ position: [0, 7, 7], fov: 50 }} 
           shadows
         >
-          <color attach="background" args={['#0a0f1d']} />
-          {/* Prevent camera going under the floor or too far */}
+          <color attach="background" args={[lightMode ? '#f4f6f8' : '#0a0f1d']} />
           <OrbitControls 
             maxPolarAngle={Math.PI / 2 - 0.05} 
             minDistance={2} 
             maxDistance={15} 
           />
-          <Warehouse3D agvsData={agvs} />
+          <Warehouse3D agvsData={agvs} lightMode={lightMode} />
         </Canvas>
       </div>
 
@@ -173,9 +186,28 @@ export default function App() {
 
       {/* HTML Telemetry Dashboard HUD */}
       <div className="hud-overlay">
-        <h1 className="hud-title">FLEET MONITOR 3D</h1>
-        <p className="hud-subtitle">Live Digital Twin Coordinate Stream</p>
-        <p className="hud-developer" style={{ fontSize: '10px', color: '#7887a5', marginTop: '-10px', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 'bold' }}>Developed by: Hafida Belayd</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <h1 className="hud-title">FLEET MONITOR 3D</h1>
+            <p className="hud-subtitle">Live Digital Twin Coordinate Stream</p>
+          </div>
+          <button 
+            onClick={toggleLightMode}
+            style={{
+              background: 'var(--color-panel-border)',
+              border: 'none',
+              color: 'var(--color-text-ivory)',
+              padding: '6px 12px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '18px'
+            }}
+            title="Toggle Theme"
+          >
+            {lightMode ? '🌙' : '☀️'}
+          </button>
+        </div>
+        <p className="hud-developer" style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '-10px', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 'bold' }}>Developed by: Hafida Belayd</p>
 
         {agvs.map((agv) => {
           const inZoneX = isAgentInZoneX(agv);
