@@ -207,7 +207,7 @@ function AGVModel({ agvData }) {
   
   // Decide sensor cone alert
   const is_in_zone_x = position?.zone === 'X' || (position?.x >= 2.9 && position?.x <= 5.1 && position?.y >= 2.9 && position?.y <= 5.1);
-  const is_stop = state === "STOP" || distance_front_cm < 80;
+  const is_stop = state === "STOP" || distance_front_cm <= 25;
   
   let coneColor = '#2ecc71'; // normal
   if (is_in_zone_x) {

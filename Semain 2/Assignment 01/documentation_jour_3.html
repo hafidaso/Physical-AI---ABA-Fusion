@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentation Jour 3 - AGV Safety & 3D Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        @page {
+            margin: 0;
+        }
+        
+        :root {
+            --primary-color: #4e8ef7; /* state-idle */
+            --secondary-color: #3498db; /* state-arrived */
+            --text-color: #eaebed; /* color-text-ivory */
+            --bg-color: #0a0f1d; /* color-bg */
+            --container-bg: #0a0f1d; /* match bg */
+            --border-color: #23304f; /* color-panel-border */
+            --highlight-bg: #101a30; /* solid color-zone-fill */
+            --highlight-border: #c34a36; /* color-terracotta */
+            --text-muted: #7887a5; /* color-text-muted */
+            --success-color: #2ecc71;
+        }
+
+        html, body {
+            background-color: var(--bg-color);
+            -webkit-print-color-adjust: exact;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            margin: 0;
+            padding: 40px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: var(--container-bg);
+            padding: 40px;
+            border-radius: 0;
+            box-shadow: none;
+        }
+
+        h1 {
+            color: var(--text-color);
+            border-bottom: 3px solid var(--primary-color);
+            padding-bottom: 10px;
+            font-size: 2.5em;
+            margin-top: 0;
+        }
+
+        h2 {
+            color: var(--primary-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px;
+            page-break-before: always;
+            padding-top: 60px;
+        }
+
+        h3 {
+            color: var(--secondary-color);
+            margin-top: 25px;
+            margin-bottom: 10px;
+        }
+
+        p {
+            margin-bottom: 15px;
+            color: var(--text-color);
+        }
+
+        ul, ol {
+            margin-bottom: 15px;
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        pre {
+            background-color: #192337;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            border: 1px solid var(--border-color);
+        }
+
+        code {
+            font-family: monospace;
+            background-color: #192337;
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: var(--success-color);
+        }
+
+        pre code {
+            background-color: transparent;
+            color: inherit;
+        }
+
+        .highlight-box {
+            background-color: var(--highlight-bg);
+            border-left: 4px solid var(--highlight-border);
+            color: var(--text-color);
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            margin-bottom: 25px;
+            border: 1px solid var(--border-color);
+        }
+        
+        th, td {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--highlight-bg);
+            color: var(--text-color);
+        }
+
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+            font-size: 0.9em;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid var(--primary-color); padding-bottom: 10px; margin-bottom: 20px;">
+            <h1 style="border-bottom: none; margin-bottom: 0; padding-bottom: 0;">Documentation Jour 3 - Évolution de Sécurité & Dashboard 3D</h1>
+            <img src="file:///Users/hafida/Documents/Physical-AI---ABA-Fusion/Semain%202/glfmZ18HjK28FyARiQJNDHHx0.svg" alt="ABA Fusion Logo" style="height: 60px;">
+        </div>
+        
+        <h2>1. Objectif de l'Étape 3</h2>
+        <p><strong>Projet :</strong> Physical AI - ABA Fusion | <strong>Auteur :</strong> Hafida Belayd</p>
+
+        <img src="file:///Users/hafida/Documents/Physical-AI---ABA-Fusion/Semain%202/Assignment%2001/screen%20dashboard.png" alt="Dashboard 3D" style="width:100%; border-radius: 8px; margin: 20px 0; border: 1px solid var(--border-color); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);">
+
+        <div class="highlight-box">
+            <p><strong>Nouveautés du Jour 3 :</strong> Cette journée s'est concentrée sur la fiabilisation du robot physique avec l'ajout de mécanismes d'arrêt d'urgence (Safety Stop) matériels, l'amélioration du traitement des données asynchrones (Non-Blocking), et la consolidation de l'intégration avec le Dashboard 3D React.</p>
+        </div>
+
+        <h3>Points Clés Abordés</h3>
+        <ul>
+            <li>Implémentation d'un arrêt d'urgence matériel conditionné par la détection du capteur ultrasonique.</li>
+            <li>Optimisation de la lecture des capteurs (Multi-échantillonnage et délai de retour d'écho allongé).</li>
+            <li>Alignement esthétique de la documentation avec le thème Cyber-Industriel du Dashboard.</li>
+        </ul>
+
+        <h2>2. Intégration du Capteur HC-SR04 et Système d'Arrêt Double (Dual Safety)</h2>
+        <p>Le robot a été équipé d'un capteur à ultrasons <strong>HC-SR04</strong> pour détecter les obstacles frontaux. Pour garantir une sécurité absolue, la logique d'arrêt d'urgence a été implémentée à deux niveaux : matériel (C++) et logiciel (Python).</p>
+
+        <h3>2.1. Niveau Matériel : C++ (ESP32 / Arduino)</h3>
+        <p>Afin d'éviter toute collision physique en cas de latence réseau, un mécanisme autonome d'arrêt d'urgence est exécuté directement sur le microcontrôleur.</p>
+        
+        <pre><code>const float SAFETY_STOP_CM = 20.0;
+
+bool isObstacleTooClose() {
+  return latestDistance > 0.0 && latestDistance <= SAFETY_STOP_CM;
+}
+
+void applySafetyStop() {
+  if (!currentlyClose) return;
+
+  // Force les moteurs à 0 indépendamment des commandes réseau
+  if (currentM1 > 0) setMotor(1, 0);
+  if (currentM2 > 0) setMotor(2, 0);
+}</code></pre>
+
+        <p><strong>Fiabilisation du HC-SR04 :</strong> Le code C++ utilise une boucle d'échantillonnage avec un timeout de <code>30000 µs</code> pour éviter de bloquer le processeur si aucun écho n'est reçu (Non-blocking). Si un obstacle apparaît à moins de 20cm, les moteurs sont coupés instantanément (Hardware Override).</p>
+
+        <h3>2.2. Niveau Logiciel : Jumeau Numérique (Python)</h3>
+        <p>Les données du capteur HC-SR04 sont envoyées via télémétrie au simulateur Python. Le jumeau numérique analyse cette distance pour mettre à jour son propre état et synchroniser l'affichage 3D.</p>
+        
+        <pre><code># Dans agv_agent.py
+if self.is_digital_twin_active and (0 < self.distance_front_cm <= 20.0):
+    self.state = "STOP"
+    return # Le jumeau numérique refuse d'avancer</code></pre>
+        <p><strong>Analyse Logique Python :</strong> Dès que <code>headless_simulator.py</code> reçoit la distance du HC-SR04, il met à jour <code>agv.distance_front_cm</code>. L'agent Python détecte l'obstacle et passe en état <code>STOP</code>. Cela crée une <strong>Sécurité Redondante</strong> : le robot physique s'arrête de lui-même, et le jumeau numérique confirme cet arrêt sur le Dashboard 3D, empêchant le système central de planifier d'autres mouvements tant que l'obstacle est présent.</p>
+
+        <h3>2.3. Réception Série Non-Bloquante (Serial Polling)</h3>
+        <p>Pour assurer une réactivité maximale du HC-SR04, la réception des commandes moteur via Serial a été transformée en boucle asynchrone (buffer caractère par caractère) au lieu de fonctions bloquantes.</p>
+        <pre><code>while (Serial.available() > 0) {
+  char c = Serial.read();
+  if (c == '\n') {
+    sscanf(serialBuffer.c_str(), "%d,%d,%d,%d", &m1, &m2, &m3, &m4);
+    setMotor(1, m1); /* ... */
+    serialBuffer = "";
+  } else {
+    serialBuffer += c;
+  }
+}</code></pre>
+        <p>Cela garantit que l'ESP32 peut continuer de lire les capteurs ultrasons et de maintenir la connexion MQTT active via <code>client.loop()</code>, sans jamais être interrompu par une latence de transmission série.</p>
+
+        <h2>3. Optimisation de l'Architecture Frontend</h2>
+        
+        <p>L'affichage est désormais parfaitement intégré au Digital Twin en 3D.</p>
+        
+        <div class="highlight-box">
+            <strong>Modifications de l'Architecture Frontend :</strong>
+            <ul>
+                <li><strong>Architecture Headless :</strong> Le jumeau numérique s'exécute à 100% via <code>headless_simulator.py</code>, dont le seul rôle est de calculer les mathématiques, les Mutex, les trajectoires (Dijkstra) et d'émettre les états via WebSocket.</li>
+                <li><strong>Dashboard React / Three.js :</strong> Tout l'affichage (véhicules, entrepôt, métriques, télémétrie en direct) est dorénavant géré par le portail Web (Frontend React) pour une expérience hautement immersive et performante.</li>
+                <li><strong>Thématisation (Dark Theme) :</strong> Adoption d'un code couleur industriel nocturne (Deep Navy <code>#0a0f1d</code>, textes Ivoire, alertes Terracotta).</li>
+            </ul>
+        </div>
+
+        <h2>4. Diagramme de la Séquence d'Arrêt d'Urgence</h2>
+        <p>Voici l'illustration du flux de contrôle de l'arrêt d'urgence matériel intégré à l'ESP32 :</p>
+        
+        <div class="mermaid">
+        sequenceDiagram
+            participant Python as Bridge Serial (Python)
+            participant ESP32 as Microcontrôleur (ESP32)
+            participant HCSR04 as Capteur Ultrason
+            participant L298N as Driver Moteurs
+
+            Python->>ESP32: Commande Avancer (M1:150, M2:150, ...)
+            
+            loop Toutes les 60ms (DISTANCE_INTERVAL)
+                ESP32->>HCSR04: Trigger Pulse (10 µs)
+                HCSR04-->>ESP32: Echo Duration
+                ESP32->>ESP32: Calcul Distance (cm)
+            end
+            
+            alt Distance <= 20 cm
+                ESP32->>ESP32: isObstacleTooClose() == TRUE
+                ESP32->>L298N: FORCER Moteurs à 0 (Arrêt Brutal)
+                ESP32-->>Python: "!!! EMERGENCY STOP !!!"
+            else Distance > 20 cm
+                ESP32->>L298N: Appliquer Consigne (PWM: 150)
+            end
+        </div>
+
+        <div class="footer">
+            <p>Physical AI - ABA Fusion | Documentation Technique (Jour 3)</p>
+            <p>Conçu et développé avec rigueur industrielle par Hafida Belayd.</p>
+        </div>
+
+        <script>mermaid.initialize({startOnLoad:true, theme: 'dark'});</script>
+    </div>
+</body>
+</html>

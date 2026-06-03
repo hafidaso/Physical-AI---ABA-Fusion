@@ -72,7 +72,14 @@ async def simulation_loop():
     
     # Configuration de la télémétrie en arrière-plan (fichiers, MQTT, etc.)
     telemetry_sender = TelemetrySender(
-        webhook_url="http://127.0.0.1:5000/webhook"
+        webhook_url="http://127.0.0.1:5000/webhook",
+        mqtt_topic_pub="warehouse/agv/telemetry",
+        mqtt_topic_twin="hafida/robot/twin/telemetry",
+        mqtt_topic_cmd="hafida/robot/twin/command",
+        mqtt_topic_twin2="hafida/robot/twin2/telemetry",
+        mqtt_topic_cmd2="hafida/robot/twin2/command",
+        mqtt_username="hivemq.webclient.1775653497883",
+        mqtt_password="1B%.CwaP:Kdr2I93k*Ap"
     )
     
     dt = 0.1  # Pas de temps de 100 ms
@@ -81,6 +88,21 @@ async def simulation_loop():
     print("🤖 Headless Simulator loop started.")
     try:
         while True:
+            # Lier les données MQTT aux AGVs
+            twin_data_1 = telemetry_sender.get_physical_twin_data("hafida-smart-robot-safety")
+            if twin_data_1:
+                agv1.is_digital_twin_active = True
+                if "distance" in twin_data_1:
+                    dist_val = float(twin_data_1["distance"])
+                    agv1.distance_front_cm = 300.0 if dist_val <= 0.0 else dist_val
+            
+            twin_data_2 = telemetry_sender.get_physical_twin_data("hafida-smart-robot-safety-2")
+            if twin_data_2:
+                agv2.is_digital_twin_active = True
+                if "distance" in twin_data_2:
+                    dist_val = float(twin_data_2["distance"])
+                    agv2.distance_front_cm = 300.0 if dist_val <= 0.0 else dist_val
+
             # 1. Mise à jour de la physique si la simulation n'est pas en pause
             if not GLOBAL_STATE["paused"]:
                 agv1.max_speed_mps = 1.0 # default autonomous speed
@@ -104,8 +126,39 @@ async def simulation_loop():
             # Calcul des vitesses finales pour les moteurs
             agv1_m1 = int(agv1.motor_left_pct * 255)
             agv1_m2 = int(agv1.motor_right_pct * 255)
-            agv2_m3 = int(agv2.motor_left_pct * 255)
-            agv2_m4 = int(agv2.motor_right_pct * 255)
+            agv2_m1 = int(agv2.motor_left_pct * 255)
+            agv2_m2 = int(agv2.motor_right_pct * 255)
+            
+            # --- DIGITAL TWIN COMMAND: SEND MOTORS TO PHYSICAL ESP32 ---
+            m1_1, m3_1 = agv1_m1, agv1_m1
+            m2_1, m4_1 = agv1_m2, agv1_m2
+            
+            m1_2, m3_2 = agv2_m1, agv2_m1
+            m2_2, m4_2 = agv2_m2, agv2_m2
+            
+            # Si le robot physique prend le contrôle total (manuel ou arrêt d'urgence)
+            if GLOBAL_STATE["emergency_stop"] or GLOBAL_STATE["paused"]:
+                m1_1, m2_1, m3_1, m4_1 = 0, 0, 0, 0
+                m1_2, m2_2, m3_2, m4_2 = 0, 0, 0, 0
+                
+            # Envoyer si changement de vitesse OU toutes les secondes (Keep-alive)
+            current_time = time.time()
+            if not hasattr(telemetry_sender, 'last_sent_motors') or \
+               telemetry_sender.last_sent_motors != (m1_1, m2_1, m3_1, m4_1) or \
+               (current_time - getattr(telemetry_sender, 'last_motor_send_time', 0) > 1.0):
+                
+                telemetry_sender.send_motor_command(telemetry_sender.mqtt_topic_cmd, m1_1, m2_1, m3_1, m4_1)
+                telemetry_sender.last_sent_motors = (m1_1, m2_1, m3_1, m4_1)
+                telemetry_sender.last_motor_send_time = current_time
+
+            # For AGV-02
+            if not hasattr(telemetry_sender, 'last_sent_motors_2') or \
+               telemetry_sender.last_sent_motors_2 != (m1_2, m2_2, m3_2, m4_2) or \
+               (current_time - getattr(telemetry_sender, 'last_motor_send_time_2', 0) > 1.0):
+                
+                telemetry_sender.send_motor_command(telemetry_sender.mqtt_topic_cmd2, m1_2, m2_2, m3_2, m4_2)
+                telemetry_sender.last_sent_motors_2 = (m1_2, m2_2, m3_2, m4_2)
+                telemetry_sender.last_motor_send_time_2 = current_time
             
             # Envoi des données en temps réel au jumeau numérique 3D
             twin_payload = {
@@ -116,8 +169,8 @@ async def simulation_loop():
                 "motor_speeds": {
                     "m1": agv1_m1,
                     "m2": agv1_m2,
-                    "m3": agv2_m3,
-                    "m4": agv2_m4
+                    "m3": agv2_m1,
+                    "m4": agv2_m2
                 }
             }
             await broadcast(json.dumps(twin_payload))

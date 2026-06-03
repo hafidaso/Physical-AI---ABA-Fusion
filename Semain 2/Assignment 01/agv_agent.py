@@ -49,6 +49,9 @@ class AGV:
         self.motor_left_pct = 0.0
         self.motor_right_pct = 0.0
         
+        # --- DIGITAL TWIN PARAMS ---
+        self.is_digital_twin_active = False
+        
         # Indique si le robot est en train de recharger ses batteries
         self.is_charging = False
         
@@ -111,19 +114,20 @@ class AGV:
                 self.connectivity_status = "ONLINE"
         
         # 2. Évolution de la batterie et de la température
-        if self.state == "EN_ROUTE" and self.speed_mps > 0:
-            # La batterie se décharge (environ 3 minutes d'activité continue pour la vider)
-            self.battery_pct = max(0.0, self.battery_pct - 0.5 * dt)
-            # Le moteur chauffe quand le robot roule
-            self.temperature_c = min(48.5, self.temperature_c + 0.15 * dt + random.uniform(-0.05, 0.05))
-        elif self.is_charging:
-            # Recharge super rapide (environ 8% par seconde)
-            self.battery_pct = min(100.0, self.battery_pct + 8.0 * dt)
-            # Le moteur refroidit pendant que le robot recharge ses batteries
-            self.temperature_c = max(24.5, self.temperature_c - 0.3 * dt)
-        else:
-            # Le moteur refroidit lentement lorsque le robot attend ou est inactif
-            self.temperature_c = max(24.0, self.temperature_c - 0.05 * dt)
+        if not self.is_digital_twin_active:
+            if self.state == "EN_ROUTE" and self.speed_mps > 0:
+                # La batterie se décharge (environ 3 minutes d'activité continue pour la vider)
+                self.battery_pct = max(0.0, self.battery_pct - 0.5 * dt)
+                # Le moteur chauffe quand le robot roule
+                self.temperature_c = min(48.5, self.temperature_c + 0.15 * dt + random.uniform(-0.05, 0.05))
+            elif self.is_charging:
+                # Recharge super rapide (environ 8% par seconde)
+                self.battery_pct = min(100.0, self.battery_pct + 8.0 * dt)
+                # Le moteur refroidit pendant que le robot recharge ses batteries
+                self.temperature_c = max(24.5, self.temperature_c - 0.3 * dt)
+            else:
+                # Le moteur refroidit lentement lorsque le robot attend ou est inactif
+                self.temperature_c = max(24.0, self.temperature_c - 0.05 * dt)
 
         # 3. Gestion du retour automatique à la station de charge
         if self.battery_pct < 20.0 and not self.is_charging and self.target_zone != "R":
@@ -138,7 +142,8 @@ class AGV:
         dist_px = math.sqrt(dx**2 + dy**2)
         
         # On considère que 1 pixel = 1 cm pour notre capteur de proximité
-        self.distance_front_cm = dist_px
+        if not self.is_digital_twin_active:
+            self.distance_front_cm = dist_px
         
         # On vérifie si l'autre AGV est situé devant nous (dans notre cône de vision de 45 degrés)
         is_obstacle_ahead = False
@@ -170,22 +175,40 @@ class AGV:
                             oux, ouy = ovx / ov_len, ovy / ov_len
                             align = ux * oux + uy * ouy
                             
-                    if align < -0.5:
-                        # Face-à-face (directions opposées)
-                        # Règle de priorité: AGV-02 cède le passage à AGV-01
-                        if self.agv_id > other_agv.agv_id:
-                            is_obstacle_ahead = True
-                            yielding = True
+                            if self.agv_id < other_agv.agv_id:
+                                is_obstacle_ahead = True
+                                yielding = True
+                                # Intelligence: Instead of waiting forever, calculate a new path!
+                                if self.state in ["EN_ROUTE", "STOP"] and self.current_node_idx > 0:
+                                    prev_node = self.path[self.current_node_idx - 1]
+                                    curr_node = self.path[self.current_node_idx]
+                                    from warehouse_map import find_shortest_path
+                                    # Find path from prev_node to target, blocking the blocked edge
+                                    new_path = find_shortest_path(prev_node, self.target_zone, blocked_edges={(prev_node, curr_node), (curr_node, prev_node)})
+                                    if new_path:
+                                        # Turn around: go back to prev_node, then follow new path
+                                        self.path = [prev_node] + new_path[1:]
+                                        self.current_node_idx = 0
+                                        # Now we are not blocked anymore on the new route!
+                                        is_obstacle_ahead = False
+                                        yielding = False
+                                        print(f"🤖 {self.agv_id} REROUTING to avoid collision! New path: {self.path}")
                     else:
                         # Même direction ou perpendiculaire, celui qui est derrière s'arrête
                         is_obstacle_ahead = True
 
         # Handle stopping for close obstacles
         obstacle_stop = False
-        if is_obstacle_ahead and self.distance_front_cm < 110.0:
-            # Arrêt de sécurité ! On attend que l'autre robot libère la voie
+        
+        # 1. Si le robot physique détecte un vrai obstacle à moins de 20 cm (HC-SR04)
+        if self.is_digital_twin_active and (0 < self.distance_front_cm <= 20.0):
             obstacle_stop = True
+            yielding = False
             
+        # 2. Mode simulation : on s'arrête si l'autre AGV virtuel est devant nous (distance virtuelle dist_px)
+        if is_obstacle_ahead and dist_px < 110.0:
+            obstacle_stop = True
+                
         # 5. Suivi du chemin, passage du carrefour Zone X ou recharge
         if obstacle_stop:
             self.state = "YIELDING" if yielding else "STOP"
@@ -247,8 +270,11 @@ class AGV:
                 self.has_zone_x_lock = True
                 self.state = "EN_ROUTE"
                 self.speed_mps = self.max_speed_mps
+                print(f"[TRAFFIC] 🚥 {self.agv_id} a obtenu l'accès exclusif à la CRITICAL ZONE X.")
             else:
                 # Le carrefour est occupé ! On s'arrête à la porte d'entrée et on attend notre tour
+                if self.state != "WAIT":
+                    print(f"[TRAFFIC] 🛑 {self.agv_id} accès refusé à la Zone X (occupée). Mise en attente...")
                 self.state = "WAIT"
                 self.speed_mps = 0.0
                 return  # Do not advance position
@@ -259,6 +285,7 @@ class AGV:
             if previous_node == 'X':
                 traffic_controller.release_zone(self.agv_id)
                 self.has_zone_x_lock = False
+                print(f"[TRAFFIC] 🟢 {self.agv_id} a quitté la CRITICAL ZONE X. Verrou libéré.")
 
         # Vitesse de déplacement du robot convertie en pixels par image (1.0 m/s équivaut à 100 pixels par seconde)
         speed_px_s = self.max_speed_mps * 100.0

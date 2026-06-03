@@ -79,11 +79,14 @@ def get_edge_weight(u: str, v: str) -> float:
         return dist * 1.6  # On rajoute 60% de pénalité sur les voies de contournement pour encourager le passage direct via la Zone X
     return dist
 
-def find_shortest_path(start: str, end: str) -> Optional[List[str]]:
+def find_shortest_path(start: str, end: str, blocked_edges: set = None) -> Optional[List[str]]:
     """
     Calcule le chemin le plus court entre deux points avec l'algorithme de Dijkstra.
     Retourne la liste des étapes du parcours, ou None si c'est impossible.
     """
+    if blocked_edges is None:
+        blocked_edges = set()
+        
     if start == end:
         return [start]
         
@@ -101,6 +104,9 @@ def find_shortest_path(start: str, end: str) -> Optional[List[str]]:
             continue
             
         for neighbor in GRAPH.get(current_node, []):
+            if (current_node, neighbor) in blocked_edges or (neighbor, current_node) in blocked_edges:
+                continue
+                
             weight = get_edge_weight(current_node, neighbor)
             distance = current_dist + weight
             

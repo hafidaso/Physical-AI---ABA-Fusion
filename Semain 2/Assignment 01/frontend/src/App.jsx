@@ -212,7 +212,7 @@ export default function App() {
         {agvs.map((agv) => {
           const inZoneX = isAgentInZoneX(agv);
           const speedPct = Math.min(100, (agv.speed_mps / 1.0) * 100);
-          const isAlert = agv.state === "STOP" || agv.distance_front_cm < 80;
+          const isAlert = agv.state === "STOP" || agv.distance_front_cm <= 25;
 
           // Battery state color mapping
           let batteryColor = "var(--state-enroute)";
