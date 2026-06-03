@@ -89,6 +89,21 @@ class AGV:
             self.motor_left_pct = 0.0
             self.motor_right_pct = 0.0
 
+    def abort_mission(self, traffic_controller):
+        """Annule la mission en cours (Soft Reset) et libère la zone X si occupée."""
+        if self.has_zone_x_lock:
+            traffic_controller.release_zone(self.agv_id)
+            self.has_zone_x_lock = False
+            print(f"[TRAFFIC] 🟢 {self.agv_id} libère la Zone X suite à un RESET.")
+            
+        self.path = []
+        self.target_node = None
+        self.state = "IDLE"
+        self.speed_mps = 0.0
+        self.motor_left_pct = 0.0
+        self.motor_right_pct = 0.0
+        print(f"🔄 {self.agv_id} MISSION ABORTED (Soft Reset). Prêt pour une nouvelle mission.")
+
     def update(self, dt: float, other_agv: 'AGV', traffic_controller: ZoneXTrafficController, emergency_stop: bool = False):
         """
         Met à jour tout le comportement physique du robot : sa position, sa batterie, 

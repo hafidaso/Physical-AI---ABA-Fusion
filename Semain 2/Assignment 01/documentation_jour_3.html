@@ -33,7 +33,7 @@
             line-height: 1.6;
             color: var(--text-color);
             margin: 0;
-            padding: 40px;
+            padding: 60px 50px; /* Augmentation du padding pour simuler une marge colorée */
             min-height: 100vh;
         }
 
@@ -42,6 +42,7 @@
             margin: 0 auto;
             background-color: var(--container-bg);
             padding: 40px;
+            padding-top: 60px; /* Plus d'espace en haut (Margin Top) avec couleur de fond */
             border-radius: 0;
             box-shadow: none;
         }
@@ -160,8 +161,10 @@
         <h3>Points Clés Abordés</h3>
         <ul>
             <li>Implémentation d'un arrêt d'urgence matériel conditionné par la détection du capteur ultrasonique.</li>
-            <li>Optimisation de la lecture des capteurs (Multi-échantillonnage et délai de retour d'écho allongé).</li>
+            <li>Optimisation drastique de la latence (réduction des délais bloquants et augmentation de la fréquence de télémétrie).</li>
+            <li>Ajout de mécanismes de "Failsafe" avancés (Watchdog de commandes et détection de perte réseau).</li>
             <li>Alignement esthétique de la documentation avec le thème Cyber-Industriel du Dashboard.</li>
+            <li>Traçabilité améliorée du trafic dans la zone critique (Zone X).</li>
         </ul>
 
         <h2>2. Intégration du Capteur HC-SR04 et Système d'Arrêt Double (Dual Safety)</h2>
@@ -184,7 +187,7 @@ void applySafetyStop() {
   if (currentM2 > 0) setMotor(2, 0);
 }</code></pre>
 
-        <p><strong>Fiabilisation du HC-SR04 :</strong> Le code C++ utilise une boucle d'échantillonnage avec un timeout de <code>30000 µs</code> pour éviter de bloquer le processeur si aucun écho n'est reçu (Non-blocking). Si un obstacle apparaît à moins de 20cm, les moteurs sont coupés instantanément (Hardware Override).</p>
+        <p><strong>Fiabilisation du HC-SR04 :</strong> Le code C++ utilise une boucle d'échantillonnage avec un timeout réduit à <code>10000 µs</code> (couvrant 1.7 mètres) pour éviter de bloquer le processeur si aucun écho n'est reçu. Si un obstacle apparaît à moins de 20cm, les moteurs sont coupés instantanément.</p>
 
         <h3>2.2. Niveau Logiciel : Jumeau Numérique (Python)</h3>
         <p>Les données du capteur HC-SR04 sont envoyées via télémétrie au simulateur Python. Le jumeau numérique analyse cette distance pour mettre à jour son propre état et synchroniser l'affichage 3D.</p>
@@ -209,7 +212,7 @@ if self.is_digital_twin_active and (0 < self.distance_front_cm <= 20.0):
 }</code></pre>
         <p>Cela garantit que l'ESP32 peut continuer de lire les capteurs ultrasons et de maintenir la connexion MQTT active via <code>client.loop()</code>, sans jamais être interrompu par une latence de transmission série.</p>
 
-        <h2>3. Optimisation de l'Architecture Frontend</h2>
+        <h2>3. Optimisation de l'Architecture Frontend et du Trafic</h2>
         
         <p>L'affichage est désormais parfaitement intégré au Digital Twin en 3D.</p>
         
@@ -218,11 +221,23 @@ if self.is_digital_twin_active and (0 < self.distance_front_cm <= 20.0):
             <ul>
                 <li><strong>Architecture Headless :</strong> Le jumeau numérique s'exécute à 100% via <code>headless_simulator.py</code>, dont le seul rôle est de calculer les mathématiques, les Mutex, les trajectoires (Dijkstra) et d'émettre les états via WebSocket.</li>
                 <li><strong>Dashboard React / Three.js :</strong> Tout l'affichage (véhicules, entrepôt, métriques, télémétrie en direct) est dorénavant géré par le portail Web (Frontend React) pour une expérience hautement immersive et performante.</li>
-                <li><strong>Thématisation (Dark Theme) :</strong> Adoption d'un code couleur industriel nocturne (Deep Navy <code>#0a0f1d</code>, textes Ivoire, alertes Terracotta).</li>
+                <li><strong>Traçabilité de la Zone X :</strong> L'agent Python notifie désormais explicitement ses demandes d'accès à la zone critique (<code>[TRAFFIC] 🚥 AGV-01 a obtenu l'accès exclusif</code>), offrant une clarté totale pour le débogage, tandis que le Dashboard 3D affiche une alerte visuelle rouge.</li>
             </ul>
         </div>
 
-        <h2>4. Diagramme de la Séquence d'Arrêt d'Urgence</h2>
+        <h2>4. Sécurité Industrielle et Réduction de Latence (Failsafes)</h2>
+        <p>Pour faire face aux pannes potentielles du réseau (Wi-Fi) ou aux crashs du serveur Python, le robot a été transformé pour fonctionner de manière autonome en mode de survie (Failsafe).</p>
+
+        <h3>4.1. Watchdog Timer des Commandes</h3>
+        <p>Si le serveur Python cesse d'envoyer des commandes de vitesse (Keep-alive) pendant plus de <strong>1.5 secondes</strong> (1500 ms), le microcontrôleur déclenche une sécurité Watchdog et force tous les moteurs à 0. Cela empêche le robot de continuer sa course "à l'aveugle" en cas de crash du serveur.</p>
+
+        <h3>4.2. Arrêt d'Urgence sur Perte de Connexion MQTT</h3>
+        <p>La fonction <code>client.connect()</code> étant bloquante, le code C++ a été modifié pour forcer un arrêt complet des moteurs <strong>avant</strong> d'entamer une quelconque tentative de reconnexion au réseau, garantissant ainsi l'immobilité totale pendant les périodes d'indisponibilité du Wi-Fi.</p>
+
+        <h3>4.3. Élimination du Goulot d'Étranglement (Bottleneck) de Télémétrie</h3>
+        <p>Auparavant, la télémétrie n'était envoyée que toutes les 2 secondes, causant un décalage visuel important dans le Dashboard. L'intervalle <code>TELEMETRY_INTERVAL</code> a été abaissé à <strong>200 ms</strong>, offrant un rafraîchissement 5 fois par seconde et garantissant une synchronisation Real-Time parfaite entre le mouvement physique et le jumeau numérique 3D.</p>
+
+        <h2>5. Diagramme de la Séquence d'Arrêt d'Urgence</h2>
         <p>Voici l'illustration du flux de contrôle de l'arrêt d'urgence matériel intégré à l'ESP32 :</p>
         
         <div class="mermaid">

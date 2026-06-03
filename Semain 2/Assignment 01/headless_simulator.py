@@ -22,6 +22,7 @@ GLOBAL_STATE = {
 
 # Dictionnaire global pour retrouver les AGV actifs lors d'un aiguillage manuel
 AGV_FLEET = {}
+TRAFFIC_CONTROLLER = ZoneXTrafficController()
 
 async def register(websocket):
     """Enregistre un nouveau client WebSocket et écoute les commandes envoyées par l'IHM."""
@@ -46,6 +47,15 @@ async def register(websocket):
                         if not GLOBAL_STATE["emergency_stop"] and not GLOBAL_STATE["paused"]:
                             agv_instance.start_mission(target)
                             print(f"✈️ Manual dispatch via WS: {agv_id} -> {target}")
+                elif command == "reset":
+                    agv_id = data.get("agv_id")
+                    if agv_id in AGV_FLEET:
+                        AGV_FLEET[agv_id].abort_mission(TRAFFIC_CONTROLLER)
+                        print(f"🔄 Soft Reset via WS: {agv_id}")
+                    elif agv_id == "ALL":
+                        for agv in AGV_FLEET.values():
+                            agv.abort_mission(TRAFFIC_CONTROLLER)
+                        print(f"🔄 Soft Reset ALL via WS")
             except Exception as e:
                 print(f"Error handling WS command: {e}")
     except websockets.exceptions.ConnectionClosed:
@@ -64,7 +74,6 @@ async def simulation_loop():
     # Initialisation de nos deux robots AGV
     agv1 = AGV("AGV-01", "A", (255, 120, 80)) # Warm Coral
     agv2 = AGV("AGV-02", "B", (46, 204, 250)) # Bright Teal
-    traffic_controller = ZoneXTrafficController()
     
     # On les enregistre dans notre dictionnaire global pour pouvoir les aiguiller manuellement via WebSocket
     AGV_FLEET["AGV-01"] = agv1
@@ -116,8 +125,8 @@ async def simulation_loop():
                     agv2.start_mission(random.choice(choices))
                     
                 # Mise à jour de la physique et des capteurs de distance
-                agv1.update(dt, agv2, traffic_controller, GLOBAL_STATE["emergency_stop"])
-                agv2.update(dt, agv1, traffic_controller, GLOBAL_STATE["emergency_stop"])
+                agv1.update(dt, agv2, TRAFFIC_CONTROLLER, GLOBAL_STATE["emergency_stop"])
+                agv2.update(dt, agv1, TRAFFIC_CONTROLLER, GLOBAL_STATE["emergency_stop"])
             
             # Récupération des données physiques actuelles
             payload1 = agv1.get_telemetry_payload()

@@ -94,10 +94,10 @@ export default function App() {
   }, []);
 
   // Send a control command to the Python simulation backend
-  const sendCommand = (cmd) => {
+  const sendCommand = (cmd, payload = {}) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ command: cmd }));
-      console.log(`📤 Dispatched command over WS: ${cmd}`);
+      wsRef.current.send(JSON.stringify({ command: cmd, ...payload }));
+      console.log(`📤 Dispatched command over WS: ${cmd}`, payload);
     }
   };
 
@@ -317,19 +317,11 @@ export default function App() {
 
               <div className="manual-dispatch-section" style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed rgba(234, 235, 237, 0.1)' }}>
                 <div style={{ fontSize: '10px', color: '#7887a5', marginBottom: '5px', fontWeight: 'bold', letterSpacing: '0.05em' }}>MANUAL DISPATCH:</div>
-                <div style={{ display: 'flex', gap: '4px' }}>
+                <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
                   {['A', 'B', 'C', 'D', 'R'].map((zone) => (
                     <button
                       key={zone}
-                      onClick={() => {
-                        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                          wsRef.current.send(JSON.stringify({ 
-                            command: "dispatch", 
-                            agv_id: agv.agv_id, 
-                            target: zone 
-                          }));
-                        }
-                      }}
+                      onClick={() => sendCommand("dispatch", { agv_id: agv.agv_id, target: zone })}
                       disabled={agv.connectivity_status === "OFFLINE" || emergencyStop || paused}
                       style={{
                         flex: 1,
@@ -389,6 +381,22 @@ export default function App() {
               }}
             >
               {emergencyStop ? "RESUME FLEET" : "STOP FLEET (E-STOP)"}
+            </button>
+            <button 
+              onClick={() => sendCommand("reset", { agv_id: "ALL" })}
+              style={{
+                flex: 1,
+                padding: '10px 5px',
+                background: '#c27d15', // Oranged/Yellow for Reset
+                color: '#fff',
+                border: '1px solid var(--color-panel-border)',
+                borderRadius: '6px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                transition: 'background 0.2s'
+              }}
+            >
+              ABORT MISSIONS
             </button>
           </div>
         </div>
