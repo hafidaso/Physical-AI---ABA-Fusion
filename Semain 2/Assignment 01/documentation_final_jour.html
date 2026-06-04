@@ -445,6 +445,10 @@
     <p>
         Zone X is a central intersection prone to collisions. Access is governed by a software **Mutex Lock** (<code>ZoneXTrafficController</code>). If AGV-01 occupies the zone, a lock is acquired, and any secondary AGVs requesting access are placed in a <code>WAIT</code> state. Once AGV-01 exits, the lock is released, and the next vehicle proceeds.
     </p>
+    <h2>4.3. Dynamic Pathfinder & Obstacle Avoidance (Dijkstra Re-routing)</h2>
+    <p>
+        When a vehicle (physical or simulated) encounters an obstacle, it reports the incident to the Python backend server. The server immediately closes this lane segment programmatically, triggering a real-time recalculation of the path using Dijkstra's algorithm. This closes the edge-to-server control loop, rerouting the vehicle safely around the obstacle.
+    </p>
 
     <h1>5. Real-Time 3D Digital Twin Visualizer</h1>
     <p>
@@ -458,6 +462,9 @@
         <li><strong>Dynamic Status LEDs:</strong> An LED emitter changes colors based on the AGV's state: Green (moving), Orange (waiting/yielding), Red (emergency stop), and Rose (critical intersection).</li>
         <li><strong>Floor PointLight Projection:</strong> A PointLight projects status-colored light on the floor grid under the AGV, creating real-time visual shadows.</li>
         <li><strong>Emissive Nodes:</strong> Blue glowing spheres indicate junction coordinates.</li>
+        <li><strong>First-Person View (FPV) Camera:</strong> Operators can toggle FPV camera tracking, positioning the view slightly behind and above the AGV group, oriented dynamically to face the vehicle's driving direction.</li>
+        <li><strong>Pulsing Blocked Lanes & Warning Signs:</strong> Path segments marked as blocked render as pulsing, semi-translucent red hazard ribbons on the floor grid with 3D warning triangles that automatically face the camera.</li>
+        <li><strong>Smart Vocal Alerts:</strong> Integrated browser speech synthesis (TTS) reads warnings on important events (collisions, e-stops, Zone X entry, and re-routing updates).</li>
     </ul>
 
     <div class="page-break"></div>
@@ -517,6 +524,13 @@
                 <div class="seq-details">
                     <span class="seq-label">Dashboard Visual Warning</span>
                     <span class="seq-desc">React displays red flashing alert overlay. Virtual AGV status LED shifts to Red, casting a red PointLight glow on the grid.</span>
+                </div>
+            </div>
+            <div class="seq-step">
+                <div class="seq-badge">8</div>
+                <div class="seq-details">
+                    <span class="seq-label">Dynamic Dijkstra Re-routing</span>
+                    <span class="seq-desc">Python backend registers the obstacle, programmatically closes the lane, notifies the React client (which renders the lane red with 3D warning flags), and dynamically recalculates a Dijkstra route to guide the vehicle around the blocked area.</span>
                 </div>
             </div>
         </div>

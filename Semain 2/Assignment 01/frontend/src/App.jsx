@@ -30,6 +30,42 @@ export default function App() {
   const [fpvMode, setFpvMode] = useState(false);
   const [blockedEdges, setBlockedEdges] = useState([]);
   const wsRef = useRef(null);
+  const speechAllowedRef = useRef(false);
+  const activeUtterancesRef = useRef([]);
+
+  // Unlocks browser speech synthesis on first user interaction
+  useEffect(() => {
+    const unlockSpeech = () => {
+      speechAllowedRef.current = true;
+      if ('speechSynthesis' in window) {
+        // Clear any blocked utterances that got queued before the user clicked
+        window.speechSynthesis.cancel();
+        console.log("🔊 Speech synthesis unlocked and queue cleared via user click.");
+      }
+      window.removeEventListener('click', unlockSpeech);
+      window.removeEventListener('keydown', unlockSpeech);
+    };
+    window.addEventListener('click', unlockSpeech);
+    window.addEventListener('keydown', unlockSpeech);
+    return () => {
+      window.removeEventListener('click', unlockSpeech);
+      window.removeEventListener('keydown', unlockSpeech);
+    };
+  }, []);
+
+  // Monitor voice changes for debugging
+  useEffect(() => {
+    if ('speechSynthesis' in window) {
+      const logVoices = () => {
+        const voices = window.speechSynthesis.getVoices();
+        console.log(`🔊 Speech voices loaded. Total: ${voices.length}`);
+        const localEn = voices.filter(v => v.lang.startsWith("en") && v.localService === true).map(v => v.name);
+        console.log("🔊 Local English voices available:", localEn);
+      };
+      window.speechSynthesis.onvoiceschanged = logVoices;
+      logVoices();
+    }
+  }, []);
 
   // Establish WebSocket connection with auto-reconnection
   useEffect(() => {
@@ -100,12 +136,101 @@ export default function App() {
 
   // Smart Speech Assistant Synthesis
   const speak = (text) => {
+    if (!speechAllowedRef.current) {
+      console.log("🔊 Speech skipped (waiting for user interaction):", text);
+      return;
+    }
+
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.95;
-      utterance.pitch = 1.0;
-      window.speechSynthesis.speak(utterance);
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+      
+      // Yield thread slightly before playing the utterance
+      setTimeout(() => {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = "en-US";
+        utterance.volume = 1.0; // Explicitly set full volume
+        
+        // Prevent Chrome garbage collection bug by storing a strong reference in a React Ref
+        activeUtterancesRef.current.push(utterance);
+        
+        const cleanUp = () => {
+          activeUtterancesRef.current = activeUtterancesRef.current.filter(u => u !== utterance);
+        };
+        
+        utterance.onstart = () => console.log("🔊 Speech Started:", text);
+        utterance.onend = () => {
+          console.log("🔊 Speech Finished:", text);
+          cleanUp();
+        };
+        utterance.onerror = (e) => {
+          console.error("❌ Speech Error:", e);
+          cleanUp();
+        };
+        
+        const voices = window.speechSynthesis.getVoices();
+        if (voices && voices.length > 0) {
+          // Filter to strictly LOCAL English voices (network independent)
+          const localEnglishVoices = voices.filter(v => 
+            v.lang.startsWith("en") && 
+            v.localService === true
+          );
+          
+          let selectedVoice = null;
+          if (localEnglishVoices.length > 0) {
+            // 1. Prioritize known high-quality pre-installed spoken voices (Alex is macOS default, Fred is standard macOS backup)
+            const premiumSpokenNames = [
+              "Alex", 
+              "Daniel", 
+              "Fred", 
+              "Samantha", 
+              "Victoria", 
+              "Microsoft David", 
+              "Microsoft Zira", 
+              "Karen", 
+              "Moira", 
+              "Tessa"
+            ];
+            
+            for (const name of premiumSpokenNames) {
+              selectedVoice = localEnglishVoices.find(v => v.name === name);
+              if (selectedVoice) break;
+            }
+            
+            // 2. Avoid Siri/Samantha (un-downloaded silence bug) and novelty sound effects (like Cellos, Bells, Organ)
+            if (!selectedVoice) {
+              const noveltyVoices = [
+                "cello", "bell", "news", "boing", "deranged", "bubble", 
+                "hysterical", "trinoid", "whisper", "zarvox", "organ", 
+                "albert", "junior", "princess", "ralph", "siri"
+              ];
+              
+              selectedVoice = localEnglishVoices.find(v => {
+                const lowerName = v.name.toLowerCase();
+                return !noveltyVoices.some(novelty => lowerName.includes(novelty));
+              });
+            }
+            
+            // 3. Fallback to first local English voice if all else fails
+            if (!selectedVoice) {
+              selectedVoice = localEnglishVoices[0];
+            }
+          }
+          
+          if (selectedVoice) {
+            utterance.voice = selectedVoice;
+            console.log(`🔊 Using local speech voice: ${selectedVoice.name}`);
+          } else {
+            console.log("🔊 No suitable local English voice found, letting browser use default system voice.");
+          }
+        }
+        
+        utterance.rate = 0.95;
+        utterance.pitch = 1.0;
+        
+        window.speechSynthesis.speak(utterance);
+      }, 50);
     }
   };
 
@@ -253,7 +378,10 @@ export default function App() {
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <button 
-              onClick={() => setFpvMode(prev => !prev)}
+              onClick={() => {
+                speechAllowedRef.current = true;
+                setFpvMode(prev => !prev);
+              }}
               style={{
                 background: fpvMode ? 'var(--state-wait)' : 'var(--color-panel-border)',
                 border: 'none',
@@ -270,6 +398,28 @@ export default function App() {
               title="Toggle First Person View Camera"
             >
               🎥 {fpvMode ? 'FPV Camera ON' : 'FPV Camera OFF'}
+            </button>
+            <button 
+              onClick={() => {
+                speechAllowedRef.current = true;
+                console.log("🔊 Manually triggered Test Voice button");
+                speak("Voice assistant test successful. System is online.");
+              }}
+              style={{
+                background: 'rgba(59, 130, 246, 0.2)',
+                border: '1px solid rgba(59, 130, 246, 0.4)',
+                color: '#3b82f6',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                fontFamily: 'Space Grotesk, sans-serif',
+                transition: 'all 0.2s ease'
+              }}
+              title="Test Voice Announcement"
+            >
+              🔊 Test Voice
             </button>
             <button 
               onClick={toggleLightMode}
@@ -402,7 +552,10 @@ export default function App() {
                   {['A', 'B', 'C', 'D', 'R'].map((zone) => (
                     <button
                       key={zone}
-                      onClick={() => sendCommand("dispatch", { agv_id: agv.agv_id, target: zone })}
+                      onClick={() => {
+                        speechAllowedRef.current = true;
+                        sendCommand("dispatch", { agv_id: agv.agv_id, target: zone });
+                      }}
                       disabled={agv.connectivity_status === "OFFLINE" || emergencyStop || paused}
                       style={{
                         flex: 1,
@@ -444,7 +597,10 @@ export default function App() {
           <div className="gateways-title">SYSTEM CONTROLS</div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button 
-              onClick={() => sendCommand("pause")}
+              onClick={() => {
+                speechAllowedRef.current = true;
+                sendCommand("pause");
+              }}
               style={{
                 flex: 1,
                 padding: '10px 5px',
@@ -468,7 +624,10 @@ export default function App() {
               {paused ? "RESUME" : "PAUSE"}
             </button>
             <button 
-              onClick={() => sendCommand("estop")}
+              onClick={() => {
+                speechAllowedRef.current = true;
+                sendCommand("estop");
+              }}
               style={{
                 flex: 1.2,
                 padding: '10px 5px',
@@ -545,7 +704,10 @@ export default function App() {
           <div className="gateways-title">DYNAMIC OBSTACLE RE-ROUTING</div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button 
-              onClick={() => sendCommand("simulate_obstacle")}
+              onClick={() => {
+                speechAllowedRef.current = true;
+                sendCommand("simulate_obstacle");
+              }}
               disabled={agvs.some(a => a.connectivity_status === "OFFLINE") || emergencyStop || paused || agvs.some(a => a.state === "IDLE")}
               style={{
                 flex: 1,
@@ -572,7 +734,10 @@ export default function App() {
               ⚠️ SIMULATE OBSTACLE
             </button>
             <button 
-              onClick={() => sendCommand("clear_obstacles")}
+              onClick={() => {
+                speechAllowedRef.current = true;
+                sendCommand("clear_obstacles");
+              }}
               disabled={emergencyStop}
               style={{
                 flex: 1,
