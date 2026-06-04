@@ -30,42 +30,6 @@ export default function App() {
   const [fpvMode, setFpvMode] = useState(false);
   const [blockedEdges, setBlockedEdges] = useState([]);
   const wsRef = useRef(null);
-  const speechAllowedRef = useRef(false);
-  const activeUtterancesRef = useRef([]);
-
-  // Unlocks browser speech synthesis on first user interaction
-  useEffect(() => {
-    const unlockSpeech = () => {
-      speechAllowedRef.current = true;
-      if ('speechSynthesis' in window) {
-        // Clear any blocked utterances that got queued before the user clicked
-        window.speechSynthesis.cancel();
-        console.log("🔊 Speech synthesis unlocked and queue cleared via user click.");
-      }
-      window.removeEventListener('click', unlockSpeech);
-      window.removeEventListener('keydown', unlockSpeech);
-    };
-    window.addEventListener('click', unlockSpeech);
-    window.addEventListener('keydown', unlockSpeech);
-    return () => {
-      window.removeEventListener('click', unlockSpeech);
-      window.removeEventListener('keydown', unlockSpeech);
-    };
-  }, []);
-
-  // Monitor voice changes for debugging
-  useEffect(() => {
-    if ('speechSynthesis' in window) {
-      const logVoices = () => {
-        const voices = window.speechSynthesis.getVoices();
-        console.log(`🔊 Speech voices loaded. Total: ${voices.length}`);
-        const localEn = voices.filter(v => v.lang.startsWith("en") && v.localService === true).map(v => v.name);
-        console.log("🔊 Local English voices available:", localEn);
-      };
-      window.speechSynthesis.onvoiceschanged = logVoices;
-      logVoices();
-    }
-  }, []);
 
   // Establish WebSocket connection with auto-reconnection
   useEffect(() => {
@@ -84,6 +48,11 @@ export default function App() {
       ws.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
+          if (payload.type === "speech" && payload.audio) {
+            const audio = new Audio("data:audio/mp3;base64," + payload.audio);
+            audio.play().catch(err => console.warn("🔊 Audio playback blocked or failed:", err));
+            return;
+          }
           if (payload.agents) {
             setAgvs(payload.agents);
           }
@@ -134,155 +103,7 @@ export default function App() {
     }
   };
 
-  // Smart Speech Assistant Synthesis
-  const speak = (text) => {
-    if (!speechAllowedRef.current) {
-      console.log("🔊 Speech skipped (waiting for user interaction):", text);
-      return;
-    }
 
-    if ('speechSynthesis' in window) {
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
-      
-      // Yield thread slightly before playing the utterance
-      setTimeout(() => {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = "en-US";
-        utterance.volume = 1.0; // Explicitly set full volume
-        
-        // Prevent Chrome garbage collection bug by storing a strong reference in a React Ref
-        activeUtterancesRef.current.push(utterance);
-        
-        const cleanUp = () => {
-          activeUtterancesRef.current = activeUtterancesRef.current.filter(u => u !== utterance);
-        };
-        
-        utterance.onstart = () => console.log("🔊 Speech Started:", text);
-        utterance.onend = () => {
-          console.log("🔊 Speech Finished:", text);
-          cleanUp();
-        };
-        utterance.onerror = (e) => {
-          console.error("❌ Speech Error:", e);
-          cleanUp();
-        };
-        
-        const voices = window.speechSynthesis.getVoices();
-        if (voices && voices.length > 0) {
-          // Filter to strictly LOCAL English voices (network independent)
-          const localEnglishVoices = voices.filter(v => 
-            v.lang.startsWith("en") && 
-            v.localService === true
-          );
-          
-          let selectedVoice = null;
-          if (localEnglishVoices.length > 0) {
-            // 1. Prioritize known high-quality pre-installed spoken voices (Alex is macOS default, Fred is standard macOS backup)
-            const premiumSpokenNames = [
-              "Alex", 
-              "Daniel", 
-              "Fred", 
-              "Samantha", 
-              "Victoria", 
-              "Microsoft David", 
-              "Microsoft Zira", 
-              "Karen", 
-              "Moira", 
-              "Tessa"
-            ];
-            
-            for (const name of premiumSpokenNames) {
-              selectedVoice = localEnglishVoices.find(v => v.name === name);
-              if (selectedVoice) break;
-            }
-            
-            // 2. Avoid Siri/Samantha (un-downloaded silence bug) and novelty sound effects (like Cellos, Bells, Organ)
-            if (!selectedVoice) {
-              const noveltyVoices = [
-                "cello", "bell", "news", "boing", "deranged", "bubble", 
-                "hysterical", "trinoid", "whisper", "zarvox", "organ", 
-                "albert", "junior", "princess", "ralph", "siri"
-              ];
-              
-              selectedVoice = localEnglishVoices.find(v => {
-                const lowerName = v.name.toLowerCase();
-                return !noveltyVoices.some(novelty => lowerName.includes(novelty));
-              });
-            }
-            
-            // 3. Fallback to first local English voice if all else fails
-            if (!selectedVoice) {
-              selectedVoice = localEnglishVoices[0];
-            }
-          }
-          
-          if (selectedVoice) {
-            utterance.voice = selectedVoice;
-            console.log(`🔊 Using local speech voice: ${selectedVoice.name}`);
-          } else {
-            console.log("🔊 No suitable local English voice found, letting browser use default system voice.");
-          }
-        }
-        
-        utterance.rate = 0.95;
-        utterance.pitch = 1.0;
-        
-        window.speechSynthesis.speak(utterance);
-      }, 50);
-    }
-  };
-
-  const lastStateRef = useRef({ paused: false, estop: false, inZoneX: false, isAlert: false, targetZone: "", blockedCount: 0 });
-
-  useEffect(() => {
-    const agv = agvs.find(a => a.agv_id === "AGV-01");
-    if (!agv) return;
-
-    const inZoneX = isAgentInZoneX(agv);
-    const isAlert = agv.state === "STOP" || agv.distance_front_cm <= 25;
-    const targetZone = agv.target_zone;
-
-    // Check E-Stop
-    if (emergencyStop && !lastStateRef.current.estop) {
-      speak("Emergency stop activated on the fleet.");
-    } else if (!emergencyStop && lastStateRef.current.estop) {
-      speak("Emergency stop cleared. Fleet operations resumed.");
-    }
-
-    // Check Pause
-    if (!emergencyStop) {
-      if (paused && !lastStateRef.current.paused) {
-        speak("Fleet operations paused.");
-      } else if (!paused && lastStateRef.current.paused) {
-        speak("Fleet operations resumed.");
-      }
-    }
-
-    // Check Zone X entry
-    if (inZoneX && !lastStateRef.current.inZoneX && !paused && !emergencyStop) {
-      speak("Warning. A.G.V. 0 1 has entered the critical intersection.");
-    }
-
-    // Check obstacle detection
-    if (isAlert && !lastStateRef.current.isAlert && !paused && !emergencyStop) {
-      speak("Alert. Obstacle detected in front of A.G.V. 0 1.");
-    }
-
-    // Check dispatch changes
-    if (targetZone !== lastStateRef.current.targetZone && targetZone !== agv.position?.zone && !paused && !emergencyStop) {
-      speak(`A.G.V. 0 1 dispatched to Zone ${targetZone}.`);
-    }
-
-    // Check blocked edges (re-routing warning)
-    if (blockedEdges.length > lastStateRef.current.blockedCount && !paused && !emergencyStop) {
-      speak("Warning. Lane obstruction detected. Recalculating path using Dijkstra's algorithm.");
-    }
-
-    // Update state ref
-    lastStateRef.current = { paused, estop: emergencyStop, inZoneX, isAlert, targetZone, blockedCount: blockedEdges.length };
-  }, [agvs, paused, emergencyStop, blockedEdges]);
 
   // Toggle Light/Dark Mode
   const toggleLightMode = () => {
@@ -379,7 +200,6 @@ export default function App() {
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <button 
               onClick={() => {
-                speechAllowedRef.current = true;
                 setFpvMode(prev => !prev);
               }}
               style={{
@@ -401,9 +221,8 @@ export default function App() {
             </button>
             <button 
               onClick={() => {
-                speechAllowedRef.current = true;
-                console.log("🔊 Manually triggered Test Voice button");
-                speak("Voice assistant test successful. System is online.");
+                console.log("🔊 Manually triggered Test Voice button via WebSocket");
+                sendCommand("test_voice");
               }}
               style={{
                 background: 'rgba(59, 130, 246, 0.2)',
@@ -553,7 +372,6 @@ export default function App() {
                     <button
                       key={zone}
                       onClick={() => {
-                        speechAllowedRef.current = true;
                         sendCommand("dispatch", { agv_id: agv.agv_id, target: zone });
                       }}
                       disabled={agv.connectivity_status === "OFFLINE" || emergencyStop || paused}
@@ -598,7 +416,6 @@ export default function App() {
           <div style={{ display: 'flex', gap: '8px' }}>
             <button 
               onClick={() => {
-                speechAllowedRef.current = true;
                 sendCommand("pause");
               }}
               style={{
@@ -625,7 +442,6 @@ export default function App() {
             </button>
             <button 
               onClick={() => {
-                speechAllowedRef.current = true;
                 sendCommand("estop");
               }}
               style={{
@@ -705,7 +521,6 @@ export default function App() {
           <div style={{ display: 'flex', gap: '8px' }}>
             <button 
               onClick={() => {
-                speechAllowedRef.current = true;
                 sendCommand("simulate_obstacle");
               }}
               disabled={agvs.some(a => a.connectivity_status === "OFFLINE") || emergencyStop || paused || agvs.some(a => a.state === "IDLE")}
@@ -735,7 +550,6 @@ export default function App() {
             </button>
             <button 
               onClick={() => {
-                speechAllowedRef.current = true;
                 sendCommand("clear_obstacles");
               }}
               disabled={emergencyStop}
