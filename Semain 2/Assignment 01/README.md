@@ -41,18 +41,35 @@ This project features a multi-agent Automated Guided Vehicle (AGV) Fleet simulat
 * **ZONE X:** A central critical intersection. Access is regulated via a mutual exclusion lock (`ZoneXTrafficController`).
 * **Dashboard Warning Flag:** When an AGV occupies the intersection, the React HUD overlay displays a flashing alert banner warning operators of critical traffic conditions.
 
+### 7. 🆕 Moroccan Arabic (Darija) Neural TTS Voice System
+* **Backend-Driven Speech Generation:** All voice announcements are now generated on the Python backend using **Microsoft Edge TTS** (`edge-tts` Python package), completely replacing the unreliable browser-level `speechSynthesis` API.
+* **High-Quality Neural Voice:** Uses the `ar-MA-MounaNeural` neural voice — a native **Moroccan Arabic (Darija)** voice model that delivers natural, high-fidelity pronunciation of all system announcements.
+* **WebSocket Audio Streaming:** The Python backend generates MP3 audio (~26KB per announcement), encodes it as **Base64**, and broadcasts it through the existing WebSocket connection as a `{"type": "speech", "audio": "..."}` payload.
+* **Browser Audio Playback:** The React frontend receives the speech payload and plays it using the Web Audio API (`new Audio("data:audio/mp3;base64,...").play()`), requiring zero additional dependencies.
+* **Event-Triggered Announcements in Darija:** The following events trigger spoken Darija announcements:
+  - 🛑 **E-Stop Activated:** *"توقيف الطوارئ تخدم، الأسطول كامل وقف."*
+  - ✅ **E-Stop Cleared:** *"حيد توقف الطوارئ، الأسطول رجع يخدم."*
+  - ⏸️ **Fleet Paused:** *"الأسطول موقف دابا."*
+  - ▶️ **Fleet Resumed:** *"الأسطول رجع يخدم دابا."*
+  - 🚗 **Dispatch to Zone:** *"العربة آ جي في واحد غادة دابا لمنطقة [Zone]."*
+  - ⚠️ **Zone X Entry:** *"رد البال، العربة دخلات لمنطقة التقاطع الخطيرة إكس."*
+  - 🚧 **Obstacle Detected:** *"حضي راسك، كاين عائق قدام العربة. جاري إعادة حساب مسار جديد."*
+  - 🗺️ **Lane Blocked (Re-routing):** *"كاين طريق مقطوعة. جاري إعادة حساب مسار جديد باستعمال ديكسترا."*
+  - 🧹 **Obstacles Cleared:** *"تمت إزالة الحواجز والعوائق، الطريق دابا مسرحة."*
+  - 🔊 **Voice Test:** *"فحص الصوت خدام مزيان، النظام دابا أونلاين."*
+
 ---
 
 ## 📂 File Directory
 
-* `requirements.txt` - Python dependency requirements.
+* `requirements.txt` - Python dependency requirements (includes `edge-tts` for Darija TTS).
 * `warehouse_map.py` - Coordinate node graph, Dijkstra pathfinder, and Zone X Mutex traffic controller.
 * `agv_agent.py` - AGV class, physics, states, sensor cone logic, differential drive, and JSON payloads.
 * `telemetry_sender.py` - Asynchronous background Queue logger (HTTP Webhook POST, MQTT Bridge).
-* `headless_simulator.py` - Backend WebSocket streaming server for the 3D twin.
+* `headless_simulator.py` - Backend WebSocket streaming server for the 3D twin. Hosts the Darija TTS generator (`generate_darija_speech`) and announcement broadcaster (`announce`).
 * `../main/main.cpp` - C++ Source Code for the physical ESP32 AGV controller (WiFi, MQTT, HC-SR04, L298N, LCD boot loader, Custom characters, Watchdog).
 * **`frontend/`** - React-Vite Web Project.
-  * `src/App.jsx` - Core React logic handling WebSocket dispatching, glassmorphic HUD controls, and dashboard indicators.
+  * `src/App.jsx` - Core React logic handling WebSocket dispatching, glassmorphic HUD controls, dashboard indicators, and base64 MP3 audio playback from backend TTS.
   * `src/Warehouse3D.jsx` - Three.js scene containing glowing junction nodes, grid mesh, zones, and dynamic AGV LIDAR/LED models.
   * `src/index.css` - Custom cyber-industrial glassmorphism dark theme CSS using Outfit & Space Grotesk Google Fonts.
 
@@ -77,3 +94,9 @@ cd frontend
 npm run dev
 ```
 Visit **[http://localhost:5173/](http://localhost:5173/)** in your browser.
+
+### 4. 🔊 Test the Darija Voice System
+1. Open the dashboard at `http://localhost:5173/`
+2. Click anywhere on the page first (required by browsers to unlock audio)
+3. Click the **🔊 Test Voice** button in the top-right header
+4. You will hear: *"فحص الصوت خدام مزيان، النظام دابا أونلاين."*

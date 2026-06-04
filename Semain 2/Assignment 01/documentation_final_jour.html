@@ -398,12 +398,12 @@
             <div class="arch-arrow">⇅ (Background Telemetry Queue Worker Threads)</div>
             <div class="arch-node backend">
                 <div class="node-title">Simulation & Routing Engine (Python Backend Server)</div>
-                <div class="node-desc">Computes Dijkstra path planning, manages Zone X Mutex lock, hosts WebSocket server.</div>
+                <div class="node-desc">Computes Dijkstra path planning, manages Zone X Mutex lock, hosts WebSocket server, and generates Moroccan Arabic (Darija) TTS audio via <code>ar-MA-MounaNeural</code>.</div>
             </div>
-            <div class="arch-arrow">↓ (10Hz WebSocket JSON Broadcast)</div>
+            <div class="arch-arrow">↓ (10Hz WebSocket JSON Broadcast + Base64 MP3 Speech Payloads)</div>
             <div class="arch-node frontend">
                 <div class="node-title">3D Presentation HUD (Vite + React + R3F)</div>
-                <div class="node-desc">Renders animated AGVs with rotating LIDARs and dynamic pointLights, displays glassmorphic status controls.</div>
+                <div class="node-desc">Renders animated AGVs with rotating LIDARs and dynamic pointLights, displays glassmorphic status controls, and plays Darija voice announcements via Web Audio API.</div>
             </div>
         </div>
     </div>
@@ -464,8 +464,29 @@
         <li><strong>Emissive Nodes:</strong> Blue glowing spheres indicate junction coordinates.</li>
         <li><strong>First-Person View (FPV) Camera:</strong> Operators can toggle FPV camera tracking, positioning the view slightly behind and above the AGV group, oriented dynamically to face the vehicle's driving direction.</li>
         <li><strong>Pulsing Blocked Lanes & Warning Signs:</strong> Path segments marked as blocked render as pulsing, semi-translucent red hazard ribbons on the floor grid with 3D warning triangles that automatically face the camera.</li>
-        <li><strong>Smart Vocal Alerts:</strong> Integrated browser speech synthesis (TTS) reads warnings on important events (collisions, e-stops, Zone X entry, and re-routing updates).</li>
+        <li><strong>Moroccan Arabic (Darija) Neural TTS Alerts:</strong> All voice announcements are generated server-side using Microsoft Edge TTS (<code>ar-MA-MounaNeural</code> neural voice), encoded as Base64 MP3, and streamed through the WebSocket for browser playback. This replaces the unreliable browser-level <code>speechSynthesis</code> API, delivering consistent, high-quality Moroccan Arabic speech for all fleet events.</li>
     </ul>
+
+    <h2>5.1. Darija TTS Technical Flow</h2>
+    <p>
+        When any fleet event occurs (E-Stop, dispatch, obstacle, Zone X entry, etc.), the Python backend calls the <code>announce(text)</code> coroutine. This function invokes <code>generate_darija_speech(text)</code>, which uses the <code>edge_tts.Communicate</code> API to synthesize an MP3 file using the <code>ar-MA-MounaNeural</code> Microsoft voice. The audio bytes are Base64-encoded and broadcast to all connected WebSocket clients as a special <code>{"type": "speech", "audio": "..."}</code> payload. The React frontend detects this payload type in its <code>ws.onmessage</code> handler and plays it using <code>new Audio("data:audio/mp3;base64," + payload.audio).play()</code>.
+    </p>
+
+    <div class="callout">
+        <div class="callout-title">🎙️ Darija Voice Events Reference</div>
+        <ul style="margin-left:0; list-style: none; padding: 0;">
+            <li>🛑 <strong>E-Stop Activated:</strong> <em>"توقيف الطوارئ تخدم، الأسطول كامل وقف."</em></li>
+            <li>✅ <strong>E-Stop Cleared:</strong> <em>"حيد توقف الطوارئ، الأسطول رجع يخدم."</em></li>
+            <li>⏸️ <strong>Fleet Paused:</strong> <em>"الأسطول موقف دابا."</em></li>
+            <li>▶️ <strong>Fleet Resumed:</strong> <em>"الأسطول رجع يخدم دابا."</em></li>
+            <li>🚗 <strong>Zone Dispatch:</strong> <em>"العربة آ جي في واحد غادة دابا لمنطقة [Zone]."</em></li>
+            <li>⚠️ <strong>Zone X Entry:</strong> <em>"رد البال، العربة دخلات لمنطقة التقاطع الخطيرة إكس."</em></li>
+            <li>🚧 <strong>Obstacle Detected:</strong> <em>"حضي راسك، كاين عائق قدام العربة. جاري إعادة حساب مسار جديد."</em></li>
+            <li>🗺️ <strong>Lane Re-routing:</strong> <em>"كاين طريق مقطوعة. جاري إعادة حساب مسار جديد باستعمال ديكسترا."</em></li>
+            <li>🧹 <strong>Obstacles Cleared:</strong> <em>"تمت إزالة الحواجز والعوائق، الطريق دابا مسرحة."</em></li>
+            <li>🔊 <strong>Voice Test:</strong> <em>"فحص الصوت خدام مزيان، النظام دابا أونلاين."</em></li>
+        </ul>
+    </div>
 
     <div class="page-break"></div>
 
@@ -533,6 +554,13 @@
                     <span class="seq-desc">Python backend registers the obstacle, programmatically closes the lane, notifies the React client (which renders the lane red with 3D warning flags), and dynamically recalculates a Dijkstra route to guide the vehicle around the blocked area.</span>
                 </div>
             </div>
+            <div class="seq-step">
+                <div class="seq-badge" style="background-color: var(--success);">9</div>
+                <div class="seq-details">
+                    <span class="seq-label" style="color: var(--success);">Moroccan Arabic (Darija) Neural TTS Announcement</span>
+                    <span class="seq-desc">Python backend generates MP3 audio using <code>ar-MA-MounaNeural</code> Edge TTS voice, encodes as Base64, and broadcasts as <code>{"type":"speech","audio":"..."}</code> payload. Browser plays the audio automatically via Web Audio API.</span>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -546,7 +574,7 @@
 
     <h1>8. Conclusion</h1>
     <p>
-        By integrating edge hardware safety overrides with an interactive 3D virtual twin, this project delivers a highly secure and traceable AGV fleet coordination platform. The low-latency MQTT/WebSocket synchronization and real-time visual warnings ensure safe industrial automation.
+        By integrating edge hardware safety overrides with an interactive 3D virtual twin and a native Moroccan Arabic (Darija) Neural TTS voice system, this project delivers a highly secure, traceable, and accessible AGV fleet coordination platform. The low-latency MQTT/WebSocket synchronization, real-time visual warnings, and spoken Darija announcements powered by the <code>ar-MA-MounaNeural</code> Microsoft Edge TTS voice ensure safe and linguistically inclusive industrial automation for Moroccan operator environments.
     </p>
 
 </body>
