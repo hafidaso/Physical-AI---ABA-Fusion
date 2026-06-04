@@ -59,6 +59,9 @@ class AGV:
         # Indique si le robot a obtenu l'autorisation de traverser l'intersection critique Zone X
         self.has_zone_x_lock = False
 
+        # Suivi des arêtes bloquées dynamiquement (évitement d'obstacles)
+        self.blocked_edges = set()
+
     @property
     def position_meters(self) -> Dict[str, float]:
         """On convertit les coordonnées pixels en mètres (100 pixels = 1 mètre)."""
@@ -72,6 +75,7 @@ class AGV:
     def start_mission(self, target_zone: str):
         """Planifie le chemin le plus court et lance le robot vers sa destination."""
         self.target_zone = target_zone
+        self.blocked_edges.clear()
         path = find_shortest_path(self.current_zone, target_zone)
         
         if path:
@@ -105,7 +109,7 @@ class AGV:
         self.motor_right_pct = 0.0
         print(f"🔄 {self.agv_id} MISSION ABORTED (Soft Reset). Prêt pour une nouvelle mission.")
 
-    def update(self, dt: float, other_agv: 'AGV', traffic_controller: ZoneXTrafficController, emergency_stop: bool = False):
+    def update(self, dt: float, other_agv: 'AGV', traffic_controller: ZoneXTrafficController, emergency_stop: bool = False, blocked_edges: set = None):
         """
         Met à jour tout le comportement physique du robot : sa position, sa batterie, 
         sa température, ses capteurs et la gestion du carrefour Zone X.
@@ -198,9 +202,11 @@ class AGV:
                                 if self.state in ["EN_ROUTE", "STOP"] and self.current_node_idx > 0:
                                     prev_node = self.path[self.current_node_idx - 1]
                                     curr_node = self.path[self.current_node_idx]
+                                    self.blocked_edges.add((prev_node, curr_node))
+                                    self.blocked_edges.add((curr_node, prev_node))
                                     from warehouse_map import find_shortest_path
                                     # Find path from prev_node to target, blocking the blocked edge
-                                    new_path = find_shortest_path(prev_node, self.target_zone, blocked_edges={(prev_node, curr_node), (curr_node, prev_node)})
+                                    new_path = find_shortest_path(prev_node, self.target_zone, blocked_edges=self.blocked_edges)
                                     if new_path:
                                         # Turn around: go back to prev_node, then follow new path
                                         self.path = [prev_node] + new_path[1:]
@@ -216,11 +222,84 @@ class AGV:
         # Handle stopping for close obstacles
         obstacle_stop = False
         
-        # 1. Si le robot physique détecte un vrai obstacle à moins de 20 cm (HC-SR04)
-        if self.is_digital_twin_active and (0 < self.distance_front_cm <= 20.0):
+        # 1. Si le robot détecte un vrai obstacle à moins de 20 cm (HC-SR04 ou simulation)
+        if 0 < self.distance_front_cm <= 20.0:
             obstacle_stop = True
             yielding = False
+
+            # Dynamic re-routing when blocked by an obstacle
+            if self.state in ["EN_ROUTE", "STOP", "YIELDING"] and len(self.path) > 0 and self.current_node_idx > 0:
+                prev_node = self.path[self.current_node_idx - 1]
+                curr_node = self.path[self.current_node_idx]
+                self.blocked_edges.add((prev_node, curr_node))
+                self.blocked_edges.add((curr_node, prev_node))
+                if blocked_edges is not None:
+                    blocked_edges.add((prev_node, curr_node))
+                    blocked_edges.add((curr_node, prev_node))
+                from warehouse_map import find_shortest_path
+                new_path = find_shortest_path(prev_node, self.target_zone, blocked_edges=self.blocked_edges)
+                if new_path:
+                    self.path = [prev_node] + new_path[1:]
+                    self.current_node_idx = 0
+                    obstacle_stop = False
+                    print(f"🤖 [REROUTING] AGV {self.agv_id} obstacle detected locally! Rerouting to: {self.path}")
             
+        # Check if current or future edges in the path are blocked globally
+        if self.state in ["EN_ROUTE", "STOP", "YIELDING", "WAIT"] and len(self.path) > 0 and blocked_edges:
+            if self.current_node_idx > 0:
+                prev_node = self.path[self.current_node_idx - 1]
+                curr_node = self.path[self.current_node_idx]
+            else:
+                prev_node = self.current_zone
+                curr_node = self.path[0]
+                
+            is_current_blocked = (prev_node, curr_node) in blocked_edges or (curr_node, prev_node) in blocked_edges
+            
+            is_future_blocked = False
+            for i in range(self.current_node_idx, len(self.path) - 1):
+                u = self.path[i]
+                v = self.path[i+1]
+                if (u, v) in blocked_edges or (v, u) in blocked_edges:
+                    is_future_blocked = True
+                    break
+            
+            if is_current_blocked:
+                local_blocked = set(blocked_edges)
+                local_blocked.add((prev_node, curr_node))
+                local_blocked.add((curr_node, prev_node))
+                from warehouse_map import find_shortest_path
+                new_path = find_shortest_path(prev_node, self.target_zone, blocked_edges=local_blocked)
+                if new_path:
+                    self.blocked_edges.update(local_blocked)
+                    self.path = [prev_node] + new_path[1:]
+                    self.current_node_idx = 0
+                    obstacle_stop = False
+                    print(f"🤖 [GLOBAL REROUTE] AGV {self.agv_id} current segment {prev_node}-{curr_node} blocked! Rerouting to: {self.path}")
+                else:
+                    obstacle_stop = True
+                    self.state = "STOP"
+                    self.speed_mps = 0.0
+                    self.motor_left_pct = 0.0
+                    self.motor_right_pct = 0.0
+            
+            elif is_future_blocked:
+                from warehouse_map import find_shortest_path
+                new_path = find_shortest_path(curr_node, self.target_zone, blocked_edges=blocked_edges)
+                if new_path:
+                    self.blocked_edges.update(blocked_edges)
+                    self.path = self.path[:self.current_node_idx + 1] + new_path[1:]
+                    print(f"🤖 [GLOBAL REROUTE] AGV {self.agv_id} future segment blocked! New path: {self.path}")
+                else:
+                    local_blocked = set(blocked_edges)
+                    local_blocked.add((prev_node, curr_node))
+                    local_blocked.add((curr_node, prev_node))
+                    new_path_from_prev = find_shortest_path(prev_node, self.target_zone, blocked_edges=local_blocked)
+                    if new_path_from_prev:
+                        self.blocked_edges.update(local_blocked)
+                        self.path = [prev_node] + new_path_from_prev[1:]
+                        self.current_node_idx = 0
+                        print(f"🤖 [GLOBAL REROUTE] AGV {self.agv_id} future blocked & forward impassable! Rerouting to: {self.path}")
+
         # 2. Mode simulation : on s'arrête si l'autre AGV virtuel est devant nous (distance virtuelle dist_px)
         if is_obstacle_ahead and dist_px < 110.0:
             obstacle_stop = True
@@ -409,5 +488,7 @@ class AGV:
             "target_zone": self.target_zone,
             "distance_front_cm": int(round(self.distance_front_cm)),
             "temperature_c": round(self.temperature_c, 1),
-            "connectivity_status": self.connectivity_status
+            "connectivity_status": self.connectivity_status,
+            "blocked_edges": [list(edge) for edge in self.blocked_edges],
+            "angle_deg": round(self.angle_deg, 1)
         }

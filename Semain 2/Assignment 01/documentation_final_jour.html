@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Technical Documentation - AGV Fleet Monitor 3D & Digital Twin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #1e3a8a;
+            --primary-light: #eff6ff;
+            --accent: #f97316;
+            --accent-light: #fff7ed;
+            --text-dark: #1f2937;
+            --text-muted: #4b5563;
+            --border: #e5e7eb;
+            --bg-light: #f9fafb;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        @page {
+            size: A4;
+            margin: 20mm;
+        }
+
+        @media print {
+            body {
+                background: #ffffff;
+                color: #000000;
+                font-size: 11pt;
+            }
+            .no-print {
+                display: none;
+            }
+            .page-break {
+                page-break-before: always;
+            }
+            h1, h2, h3 {
+                page-break-after: avoid;
+            }
+            .diagram-container {
+                page-break-inside: avoid;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            color: var(--text-dark);
+            background-color: #ffffff;
+            line-height: 1.6;
+            padding: 40px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        header {
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 25px;
+            margin-bottom: 40px;
+        }
+
+        .doc-title {
+            font-family: 'Inter', sans-serif;
+            font-size: 2.2em;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 10px;
+            letter-spacing: -0.02em;
+        }
+
+        .doc-meta {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            font-size: 0.95em;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .meta-group {
+            margin-right: 20px;
+            margin-bottom: 5px;
+        }
+
+        .meta-label {
+            color: var(--accent);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85em;
+            letter-spacing: 0.05em;
+        }
+
+        h1 {
+            color: var(--primary);
+            font-size: 1.6em;
+            margin-top: 1.8em;
+            margin-bottom: 0.8em;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 6px;
+            font-weight: 700;
+        }
+
+        h2 {
+            color: var(--primary);
+            font-size: 1.25em;
+            margin-top: 1.5em;
+            margin-bottom: 0.6em;
+            font-weight: 600;
+        }
+
+        p {
+            margin-bottom: 1.2em;
+            text-align: justify;
+        }
+
+        ul, ol {
+            margin-bottom: 1.2em;
+            margin-left: 20px;
+        }
+
+        li {
+            margin-bottom: 0.4em;
+        }
+
+        code {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: var(--bg-light);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            border: 1px solid var(--border);
+        }
+
+        pre {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: var(--bg-light);
+            border: 1px solid var(--border);
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin-bottom: 1.2em;
+            font-size: 0.9em;
+        }
+
+        /* Note Callouts */
+        .callout {
+            border-left: 4px solid var(--primary);
+            background-color: var(--primary-light);
+            padding: 15px 20px;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 1.5em;
+        }
+
+        .callout-title {
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 5px;
+            font-size: 0.95em;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .callout.safety {
+            border-left-color: var(--danger);
+            background-color: #fef2f2;
+        }
+        .callout.safety .callout-title {
+            color: var(--danger);
+        }
+
+        /* Diagram Layouts */
+        .diagram-container {
+            border: 1px solid var(--border);
+            background-color: var(--bg-light);
+            border-radius: 12px;
+            padding: 24px;
+            margin: 25px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .diagram-title {
+            font-size: 0.9em;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        /* System Architecture Styled Boxes */
+        .arch-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            width: 100%;
+            max-width: 650px;
+        }
+
+        .arch-node {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 18px;
+            background: #ffffff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            position: relative;
+            text-align: center;
+        }
+
+        .arch-node.edge {
+            border-left: 4px solid var(--accent);
+            background-color: var(--accent-light);
+        }
+
+        .arch-node.comm {
+            border-left: 4px solid var(--warning);
+            background-color: #fffbeb;
+        }
+
+        .arch-node.backend {
+            border-left: 4px solid var(--primary);
+            background-color: var(--primary-light);
+        }
+
+        .arch-node.frontend {
+            border-left: 4px solid var(--success);
+            background-color: #ecfdf5;
+        }
+
+        .node-title {
+            font-weight: 700;
+            font-size: 0.95em;
+            margin-bottom: 4px;
+            color: var(--text-dark);
+        }
+
+        .node-desc {
+            font-size: 0.85em;
+            color: var(--text-muted);
+        }
+
+        .arch-arrow {
+            text-align: center;
+            font-size: 1.2em;
+            color: var(--text-muted);
+            margin: -8px 0;
+        }
+
+        /* Sequence Diagram CSS style */
+        .seq-container {
+            width: 100%;
+            max-width: 700px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .seq-step {
+            display: flex;
+            align-items: center;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px 14px;
+            background: #ffffff;
+            font-size: 0.88em;
+        }
+
+        .seq-badge {
+            background-color: var(--primary);
+            color: #ffffff;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.85em;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+
+        .seq-badge.critical {
+            background-color: var(--danger);
+            animation: pulse 1.5s infinite;
+        }
+
+        .seq-details {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .seq-label {
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .seq-desc {
+            color: var(--text-muted);
+            font-size: 0.9em;
+            margin-top: 2px;
+        }
+
+        /* Footer buttons */
+        .action-banner {
+            background-color: var(--bg-light);
+            border: 1px dashed var(--border);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 40px;
+            text-align: center;
+        }
+
+        .print-btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.9em;
+            transition: background-color 0.2s;
+        }
+
+        .print-btn:hover {
+            background-color: #1e40af;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <img src="glfmZ18HjK28FyARiQJNDHHx0.svg" alt="ABA Logo" style="height: 55px; float: right; margin-left: 20px; margin-bottom: 15px;" />
+        <div class="doc-title">AGV Fleet Monitor 3D & Digital Twin</div>
+        <p style="font-size: 1.1em; color: var(--text-muted); margin-bottom: 15px; text-align: left; max-width: calc(100% - 150px);">
+            A Cyber-Physical System Integrating Edge Microcontrollers, Real-Time WebSockets, and Three.js 3D Virtualization.
+        </p>
+        <div class="doc-meta">
+            <div class="meta-group">
+                <span class="meta-label">Project:</span>
+                <span>Physical AI - ABA Fusion (Semaine 2)</span>
+            </div>
+            <div class="meta-group">
+                <span class="meta-label">Final Delivery:</span>
+                <span>Jour 4 (Technical Report)</span>
+            </div>
+            <div class="meta-group">
+                <span class="meta-label">Developed By:</span>
+                <span>Hafida Belayd & Abdelkhalek Hanbel</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="action-banner no-print">
+        <p style="margin-bottom: 10px; font-size: 0.9em; text-align: center;">Ready to export? You can save this document directly as a PDF via your browser's Print dialog.</p>
+        <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
+    </div>
+
+    <h1>1. Executive Summary</h1>
+    <p>
+        Modern warehouse automation relies extensively on Automated Guided Vehicles (AGVs) to coordinate logistics. Managing a physical fleet of AGVs presents challenges, particularly around system visibility, network latency, and collision prevention. This project resolves these issues by implementing a cyber-physical digital twin architecture. 
+    </p>
+    <p>
+        By combining an embedded ESP32 microcontroller, a Python simulation routing broker, and an interactive React Three Fiber 3D client, we provide operators with real-time telemetry streaming, visual route coordinates, and manual trajectory overrides. Security is enforced via a two-layer safety mechanism combining automated hardware interrupts and cloud coordinated software locks.
+    </p>
+
+    <h1>2. System Architecture</h1>
+    <p>
+        The system uses a four-layered Cyber-Physical Architecture designed to ensure decoupling, reliability, and real-time visualization. Data flows from sensors up to the browser visualizer and down from the user HUD as commands.
+    </p>
+
+    <div class="diagram-container">
+        <div class="diagram-title">System Architecture (Diagramme d'Architecture)</div>
+        <div class="arch-grid">
+            <div class="arch-node edge">
+                <div class="node-title">Embedded Edge Layer (ESP32 Microcontroller)</div>
+                <div class="node-desc">Reads HC-SR04 ultrasonic sensor, controls L298N motor driver, updates local I2C LCD displaying custom status icons.</div>
+            </div>
+            <div class="arch-arrow">⇅ (SSL MQTT Port 8883 - JSON/Text Payloads)</div>
+            <div class="arch-node comm">
+                <div class="node-title">Communication Bridge (HiveMQ Cloud Broker)</div>
+                <div class="node-desc">Brokers telemetry topics ("twin2/telemetry") and command queues ("robot/control") over secure TLS.</div>
+            </div>
+            <div class="arch-arrow">⇅ (Background Telemetry Queue Worker Threads)</div>
+            <div class="arch-node backend">
+                <div class="node-title">Simulation & Routing Engine (Python Backend Server)</div>
+                <div class="node-desc">Computes Dijkstra path planning, manages Zone X Mutex lock, hosts WebSocket server.</div>
+            </div>
+            <div class="arch-arrow">↓ (10Hz WebSocket JSON Broadcast)</div>
+            <div class="arch-node frontend">
+                <div class="node-title">3D Presentation HUD (Vite + React + R3F)</div>
+                <div class="node-desc">Renders animated AGVs with rotating LIDARs and dynamic pointLights, displays glassmorphic status controls.</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="page-break"></div>
+
+    <h1>3. Embedded Edge Layer (ESP32 Firmware)</h1>
+    <p>
+        The physical vehicle is governed by an ESP32 edge microcontroller executing a non-blocking scheduling loop. The firmware maintains strict timing for telemetry updates, LCD refreshes, and distance scans to maximize responsiveness.
+    </p>
+    <h2>3.1. Non-Blocking Design and LCD Layout</h2>
+    <p>
+        Unlike legacy looping structures that rely on <code>delay()</code>, our firmware uses <code>millis()</code> timer comparison thresholds. This ensures the MQTT callback and loop processing run at full speed. An I2C LCD screen (1602) displays live operational metrics.
+    </p>
+    <p>
+        To elevate visual feedback, we registered custom character binary matrices directly to the LCD memory during `setup()` to render icons:
+    </p>
+    <ul>
+        <li><code>🤖</code> (Robot icon) displayed next to active speed values.</li>
+        <li><code>🔋</code> (Battery symbol) displayed next to battery levels.</li>
+        <li><code>❤️</code> (Heartbeat symbol) that blinks dynamically every 500ms when connected to the broker.</li>
+        <li><code>⚠️</code> (Hazard symbol) that flashes rapidly at 250ms intervals if an obstacle is detected in the safety range.</li>
+    </ul>
+
+    <h2>3.2. Startup Animation</h2>
+    <p>
+        During the initialization phase inside `setup()`, the LCD runs a visual loading sequence. It prints a progress bar block-by-block across the second line (16 segments total) and displays <code>"Booting AGV OS... 🤖"</code> before flashing <code>"System Active! ❤️"</code>.
+    </p>
+
+    <h1>4. Software & Coordination Layer (Python Backend)</h1>
+    <p>
+        The Python server (running <code>headless_simulator.py</code>) manages fleet physics and navigation logic. It handles path routing and coordinates traffic intersections to prevent collisions.
+    </p>
+    <h2>4.1. Dijkstra Path Planning</h2>
+    <p>
+        The warehouse is defined as a graph containing node coordinates (Zones A, B, C, D, Charging Zone R) and lanes. When a new target is dispatched, the backend computes the shortest path using Dijkstra's algorithm and streams coordinates step-by-step.
+    </p>
+    <h2>4.2. Traffic Coordination (Zone X Mutex)</h2>
+    <p>
+        Zone X is a central intersection prone to collisions. Access is governed by a software **Mutex Lock** (<code>ZoneXTrafficController</code>). If AGV-01 occupies the zone, a lock is acquired, and any secondary AGVs requesting access are placed in a <code>WAIT</code> state. Once AGV-01 exits, the lock is released, and the next vehicle proceeds.
+    </p>
+
+    <h1>5. Real-Time 3D Digital Twin Visualizer</h1>
+    <p>
+        The React frontend connects via WebSockets to the Python backend to synchronize the virtual and physical states. It features an interactive **Glassmorphism HUD** panel built with CSS backdrop-filters, custom Outfit/Space Grotesk typography, and neon glows.
+    </p>
+    <p>
+        Inside the Three.js 3D canvas (React Three Fiber), the visual assets have been enhanced to match the physical states:
+    </p>
+    <ul>
+        <li><strong>Spinning LIDAR:</strong> A 3D LIDAR cylinder is rendered on top of the AGV model and spins continuously using the animation loop.</li>
+        <li><strong>Dynamic Status LEDs:</strong> An LED emitter changes colors based on the AGV's state: Green (moving), Orange (waiting/yielding), Red (emergency stop), and Rose (critical intersection).</li>
+        <li><strong>Floor PointLight Projection:</strong> A PointLight projects status-colored light on the floor grid under the AGV, creating real-time visual shadows.</li>
+        <li><strong>Emissive Nodes:</strong> Blue glowing spheres indicate junction coordinates.</li>
+    </ul>
+
+    <div class="page-break"></div>
+
+    <h1>6. Cyber-Physical Sequence & Data Flow</h1>
+    <p>
+        The diagram below traces the communication lifecycle when an operator triggers a route dispatch, highlighting the edge-level safety interrupts.
+    </p>
+
+    <div class="diagram-container">
+        <div class="diagram-title">System Sequence Flow (Flux de Données)</div>
+        <div class="seq-container">
+            <div class="seq-step">
+                <div class="seq-badge">1</div>
+                <div class="seq-details">
+                    <span class="seq-label">Route Dispatch</span>
+                    <span class="seq-desc">Operator clicks Zone A on React HUD. Web client sends <code>{"command":"dispatch","target":"A"}</code> via WebSocket to Python backend.</span>
+                </div>
+            </div>
+            <div class="seq-step">
+                <div class="seq-badge">2</div>
+                <div class="seq-details">
+                    <span class="seq-label">Path Planning</span>
+                    <span class="seq-desc">Python server runs Dijkstra's algorithm to compute shortest path and starts updating motion steps.</span>
+                </div>
+            </div>
+            <div class="seq-step">
+                <div class="seq-badge">3</div>
+                <div class="seq-details">
+                    <span class="seq-label">Hardware Instruction</span>
+                    <span class="seq-desc">Python publishes command string (e.g. <code>"FORWARD"</code>) to the HiveMQ MQTT broker on topic <code>"robot/control"</code>.</span>
+                </div>
+            </div>
+            <div class="seq-step">
+                <div class="seq-badge">4</div>
+                <div class="seq-details">
+                    <span class="seq-label">Edge Execution & Scan</span>
+                    <span class="seq-desc">ESP32 receives command via Wi-Fi and triggers motor pins, while checking proximity using the HC-SR04 sensor.</span>
+                </div>
+            </div>
+            <div class="seq-step">
+                <div class="seq-badge critical">5</div>
+                <div class="seq-details">
+                    <span class="seq-label" style="color: var(--danger);">Edge Safety Interrupt (Distance &lt; 20cm)</span>
+                    <span class="seq-desc">If an obstacle is detected, ESP32 overrides motor speed to 0 immediately, flashes <code>"⚠️"</code> on I2C LCD, and publishes emergency telemetry to MQTT.</span>
+                </div>
+            </div>
+            <div class="seq-step">
+                <div class="seq-badge">6</div>
+                <div class="seq-details">
+                    <span class="seq-label">Digital Twin Sync</span>
+                    <span class="seq-desc">Python backend reads MQTT warning telemetry, stops simulated motion, and broadcasts <code>emergency_stop: true</code> to React client.</span>
+                </div>
+            </div>
+            <div class="seq-step">
+                <div class="seq-badge">7</div>
+                <div class="seq-details">
+                    <span class="seq-label">Dashboard Visual Warning</span>
+                    <span class="seq-desc">React displays red flashing alert overlay. Virtual AGV status LED shifts to Red, casting a red PointLight glow on the grid.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h1>7. Security and Safety Failsafes</h1>
+    <div class="callout safety">
+        <div class="callout-title">Critical Safety Systems</div>
+        <p>
+            To prevent runaway movement, the ESP32 implements a <strong>1500ms Watchdog Timer</strong>. If the Python backend fails to send commands within this window, the ESP32 automatically halts all motors. Furthermore, if Wi-Fi or MQTT connections are lost, the robot cuts motor power instantly before executing reconnect logic.
+        </p>
+    </div>
+
+    <h1>8. Conclusion</h1>
+    <p>
+        By integrating edge hardware safety overrides with an interactive 3D virtual twin, this project delivers a highly secure and traceable AGV fleet coordination platform. The low-latency MQTT/WebSocket synchronization and real-time visual warnings ensure safe industrial automation.
+    </p>
+
+</body>
+</html>

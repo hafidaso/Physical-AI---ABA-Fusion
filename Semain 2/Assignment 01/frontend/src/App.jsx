@@ -27,6 +27,8 @@ export default function App() {
   const [emergencyStop, setEmergencyStop] = useState(false);
   const [lightMode, setLightMode] = useState(false);
   const [speed, setSpeed] = useState(50);
+  const [fpvMode, setFpvMode] = useState(false);
+  const [blockedEdges, setBlockedEdges] = useState([]);
   const wsRef = useRef(null);
 
   // Establish WebSocket connection with auto-reconnection
@@ -57,6 +59,9 @@ export default function App() {
           }
           if (payload.speed !== undefined) {
             setSpeed(payload.speed);
+          }
+          if (payload.blocked_edges !== undefined) {
+            setBlockedEdges(payload.blocked_edges);
           }
         } catch (err) {
           console.error("Error parsing telemetry payload:", err);
@@ -92,6 +97,67 @@ export default function App() {
       console.log(`📤 Dispatched command over WS: ${cmd}`, payload);
     }
   };
+
+  // Smart Speech Assistant Synthesis
+  const speak = (text) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.95;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  const lastStateRef = useRef({ paused: false, estop: false, inZoneX: false, isAlert: false, targetZone: "", blockedCount: 0 });
+
+  useEffect(() => {
+    const agv = agvs.find(a => a.agv_id === "AGV-01");
+    if (!agv) return;
+
+    const inZoneX = isAgentInZoneX(agv);
+    const isAlert = agv.state === "STOP" || agv.distance_front_cm <= 25;
+    const targetZone = agv.target_zone;
+
+    // Check E-Stop
+    if (emergencyStop && !lastStateRef.current.estop) {
+      speak("Emergency stop activated on the fleet.");
+    } else if (!emergencyStop && lastStateRef.current.estop) {
+      speak("Emergency stop cleared. Fleet operations resumed.");
+    }
+
+    // Check Pause
+    if (!emergencyStop) {
+      if (paused && !lastStateRef.current.paused) {
+        speak("Fleet operations paused.");
+      } else if (!paused && lastStateRef.current.paused) {
+        speak("Fleet operations resumed.");
+      }
+    }
+
+    // Check Zone X entry
+    if (inZoneX && !lastStateRef.current.inZoneX && !paused && !emergencyStop) {
+      speak("Warning. A.G.V. 0 1 has entered the critical intersection.");
+    }
+
+    // Check obstacle detection
+    if (isAlert && !lastStateRef.current.isAlert && !paused && !emergencyStop) {
+      speak("Alert. Obstacle detected in front of A.G.V. 0 1.");
+    }
+
+    // Check dispatch changes
+    if (targetZone !== lastStateRef.current.targetZone && targetZone !== agv.position?.zone && !paused && !emergencyStop) {
+      speak(`A.G.V. 0 1 dispatched to Zone ${targetZone}.`);
+    }
+
+    // Check blocked edges (re-routing warning)
+    if (blockedEdges.length > lastStateRef.current.blockedCount && !paused && !emergencyStop) {
+      speak("Warning. Lane obstruction detected. Recalculating path using Dijkstra's algorithm.");
+    }
+
+    // Update state ref
+    lastStateRef.current = { paused, estop: emergencyStop, inZoneX, isAlert, targetZone, blockedCount: blockedEdges.length };
+  }, [agvs, paused, emergencyStop, blockedEdges]);
 
   // Toggle Light/Dark Mode
   const toggleLightMode = () => {
@@ -156,12 +222,14 @@ export default function App() {
           shadows
         >
           <color attach="background" args={[lightMode ? '#f4f6f8' : '#0a0f1d']} />
-          <OrbitControls 
-            maxPolarAngle={Math.PI / 2 - 0.05} 
-            minDistance={2} 
-            maxDistance={15} 
-          />
-          <Warehouse3D agvsData={agvs} lightMode={lightMode} />
+          {!fpvMode && (
+            <OrbitControls 
+              maxPolarAngle={Math.PI / 2 - 0.05} 
+              minDistance={2} 
+              maxDistance={15} 
+            />
+          )}
+          <Warehouse3D agvsData={agvs} lightMode={lightMode} fpvMode={fpvMode} blockedEdges={blockedEdges} />
         </Canvas>
       </div>
 
@@ -183,21 +251,42 @@ export default function App() {
             <h1 className="hud-title">FLEET MONITOR 3D</h1>
             <p className="hud-subtitle">Live Digital Twin Coordinate Stream</p>
           </div>
-          <button 
-            onClick={toggleLightMode}
-            style={{
-              background: 'var(--color-panel-border)',
-              border: 'none',
-              color: 'var(--color-text-ivory)',
-              padding: '6px 12px',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '18px'
-            }}
-            title="Toggle Theme"
-          >
-            {lightMode ? '🌙' : '☀️'}
-          </button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button 
+              onClick={() => setFpvMode(prev => !prev)}
+              style={{
+                background: fpvMode ? 'var(--state-wait)' : 'var(--color-panel-border)',
+                border: 'none',
+                color: fpvMode ? '#000' : 'var(--color-text-ivory)',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                fontFamily: 'Space Grotesk, sans-serif',
+                transition: 'all 0.2s ease',
+                boxShadow: fpvMode ? '0 0 10px rgba(245, 158, 11, 0.4)' : 'none'
+              }}
+              title="Toggle First Person View Camera"
+            >
+              🎥 {fpvMode ? 'FPV Camera ON' : 'FPV Camera OFF'}
+            </button>
+            <button 
+              onClick={toggleLightMode}
+              style={{
+                background: 'var(--color-panel-border)',
+                border: 'none',
+                color: 'var(--color-text-ivory)',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '18px'
+              }}
+              title="Toggle Theme"
+            >
+              {lightMode ? '🌙' : '☀️'}
+            </button>
+          </div>
         </div>
         <p className="hud-developer" style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '-10px', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 'bold' }}>Developed by: Hafida Belayd & Abdelkhalek Hanbel</p>
 
@@ -447,6 +536,67 @@ export default function App() {
               }}
             >
               RESET TO C
+            </button>
+          </div>
+        </div>
+
+        {/* Obstacle Avoidance Panel */}
+        <div className="gateways-panel" style={{ marginBottom: '15px' }}>
+          <div className="gateways-title">DYNAMIC OBSTACLE RE-ROUTING</div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button 
+              onClick={() => sendCommand("simulate_obstacle")}
+              disabled={agvs.some(a => a.connectivity_status === "OFFLINE") || emergencyStop || paused || agvs.some(a => a.state === "IDLE")}
+              style={{
+                flex: 1,
+                padding: '10px 5px',
+                background: 'rgba(239, 68, 68, 0.15)',
+                color: '#ef4444',
+                border: '1px solid rgba(239, 68, 68, 0.4)',
+                borderRadius: '8px',
+                fontWeight: '700',
+                fontFamily: 'Space Grotesk, sans-serif',
+                cursor: agvs.some(a => a.connectivity_status === "OFFLINE") || emergencyStop || paused || agvs.some(a => a.state === "IDLE") ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s ease',
+                opacity: agvs.some(a => a.connectivity_status === "OFFLINE") || emergencyStop || paused || agvs.some(a => a.state === "IDLE") ? 0.4 : 1
+              }}
+              onMouseEnter={(e) => {
+                if (!(agvs.some(a => a.connectivity_status === "OFFLINE") || emergencyStop || paused || agvs.some(a => a.state === "IDLE"))) {
+                  e.target.style.background = 'rgba(239, 68, 68, 0.3)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = 'rgba(239, 68, 68, 0.15)';
+              }}
+            >
+              ⚠️ SIMULATE OBSTACLE
+            </button>
+            <button 
+              onClick={() => sendCommand("clear_obstacles")}
+              disabled={emergencyStop}
+              style={{
+                flex: 1,
+                padding: '10px 5px',
+                background: 'rgba(16, 185, 129, 0.15)',
+                color: '#10b981',
+                border: '1px solid rgba(16, 185, 129, 0.4)',
+                borderRadius: '8px',
+                fontWeight: '700',
+                fontFamily: 'Space Grotesk, sans-serif',
+                cursor: emergencyStop ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s ease',
+                opacity: emergencyStop ? 0.4 : 1
+              }}
+              onMouseEnter={(e) => {
+                if (!emergencyStop) {
+                  e.target.style.background = 'rgba(16, 185, 129, 0.3)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = 'rgba(16, 185, 129, 0.15)';
+              }}
+            >
+              🧹 CLEAR OBSTACLES
             </button>
           </div>
         </div>

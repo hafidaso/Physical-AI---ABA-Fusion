@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -158,23 +158,122 @@ function ZoneX() {
   );
 }
 
-function LaneLines() {
-  const points = [];
-  LANES.forEach(([n1, n2]) => {
-    points.push(new THREE.Vector3(...NODES_3D[n1]));
-    points.push(new THREE.Vector3(...NODES_3D[n2]));
+function BlockedLane({ n1, n2 }) {
+  const meshRef = useRef();
+  
+  const p1 = new THREE.Vector3(...NODES_3D[n1]);
+  const p2 = new THREE.Vector3(...NODES_3D[n2]);
+  const length = p1.distanceTo(p2);
+  const midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+  midpoint.y = 0.015; // slightly above floor
+  const angle = Math.atan2(p2.z - p1.z, p2.x - p1.x);
+
+  useFrame(({ clock }) => {
+    if (meshRef.current) {
+      meshRef.current.material.opacity = 0.35 + Math.sin(clock.getElapsedTime() * 8.0) * 0.2;
+    }
   });
 
-  const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
-
   return (
-    <lineSegments geometry={lineGeometry}>
-      <lineBasicMaterial color="#1c2a46" linewidth={1.5} />
-    </lineSegments>
+    <group position={midpoint} rotation={[0, -angle, 0]}>
+      {/* Red glowing ribbon */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} ref={meshRef}>
+        <planeGeometry args={[length, 0.16]} />
+        <meshBasicMaterial color="#ef4444" transparent opacity={0.6} side={THREE.DoubleSide} />
+      </mesh>
+      
+      {/* Thin red side borders */}
+      <mesh position={[0, 0.001, 0.08]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[length, 0.02]} />
+        <meshBasicMaterial color="#f87171" />
+      </mesh>
+      <mesh position={[0, 0.001, -0.08]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[length, 0.02]} />
+        <meshBasicMaterial color="#f87171" />
+      </mesh>
+    </group>
   );
 }
 
-function AGVModel({ agvData }) {
+function WarningSign({ position }) {
+  const billboardRef = useRef();
+
+  useFrame((state) => {
+    if (billboardRef.current) {
+      billboardRef.current.quaternion.copy(state.camera.quaternion);
+    }
+  });
+
+  return (
+    <group position={[position.x, 0.35, position.z]} ref={billboardRef}>
+      {/* Hazard Warning Triangle */}
+      <mesh position={[0, 0, 0]}>
+        <coneGeometry args={[0.15, 0.25, 3]} />
+        <meshBasicMaterial color="#ef4444" />
+      </mesh>
+      {/* Black exclamation mark inside or simple backing */}
+      <mesh position={[0, -0.02, 0.01]}>
+        <sphereGeometry args={[0.02, 8, 8]} />
+        <meshBasicMaterial color="#000" />
+      </mesh>
+      <mesh position={[0, 0.05, 0.01]}>
+        <cylinderGeometry args={[0.015, 0.01, 0.08, 8]} />
+        <meshBasicMaterial color="#000" />
+      </mesh>
+      
+      {/* Small glow ring underneath */}
+      <mesh position={[0, -0.15, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.08, 0.12, 16]} />
+        <meshBasicMaterial color="#ef4444" transparent opacity={0.8} />
+      </mesh>
+    </group>
+  );
+}
+
+function LaneLines({ blockedEdges = [] }) {
+  const points = [];
+  LANES.forEach(([n1, n2]) => {
+    const isBlocked = blockedEdges.some(edge => 
+      (edge[0] === n1 && edge[1] === n2) || (edge[0] === n2 && edge[1] === n1)
+    );
+    if (!isBlocked) {
+      points.push(new THREE.Vector3(...NODES_3D[n1]));
+      points.push(new THREE.Vector3(...NODES_3D[n2]));
+    }
+  });
+
+  const lineGeometry = points.length > 0 ? new THREE.BufferGeometry().setFromPoints(points) : null;
+
+  return (
+    <group>
+      {lineGeometry && (
+        <lineSegments geometry={lineGeometry}>
+          <lineBasicMaterial color="#1c2a46" linewidth={1.5} />
+        </lineSegments>
+      )}
+      
+      {LANES.map(([n1, n2], idx) => {
+        const isBlocked = blockedEdges.some(edge => 
+          (edge[0] === n1 && edge[1] === n2) || (edge[0] === n2 && edge[1] === n1)
+        );
+        if (isBlocked) {
+          const p1 = new THREE.Vector3(...NODES_3D[n1]);
+          const p2 = new THREE.Vector3(...NODES_3D[n2]);
+          const midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+          return (
+            <group key={idx}>
+              <BlockedLane n1={n1} n2={n2} />
+              <WarningSign position={midpoint} />
+            </group>
+          );
+        }
+        return null;
+      })}
+    </group>
+  );
+}
+
+function AGVModel({ agvData, fpvMode }) {
   const meshRef = useRef();
   const lidarRef = useRef();
 
@@ -192,6 +291,41 @@ function AGVModel({ agvData }) {
       meshRef.current.position.x = THREE.MathUtils.lerp(meshRef.current.position.x, targetX, 0.22);
       meshRef.current.position.z = THREE.MathUtils.lerp(meshRef.current.position.z, targetZ, 0.22);
       meshRef.current.position.y = 0.12; 
+
+      // Interpolate heading rotation smoothly
+      const targetAngleRad = -((agvData.angle_deg || 0) * Math.PI) / 180;
+      let diff = targetAngleRad - meshRef.current.rotation.y;
+      while (diff < -Math.PI) diff += 2 * Math.PI;
+      while (diff > Math.PI) diff -= 2 * Math.PI;
+      meshRef.current.rotation.y += diff * 0.22;
+
+      // If FPV Camera mode is enabled for AGV-01, track it
+      if (fpvMode && agv_id === "AGV-01") {
+        const angleRad = meshRef.current.rotation.y;
+        const forwardX = Math.cos(angleRad);
+        const forwardZ = -Math.sin(angleRad);
+
+        // Position camera behind and above AGV
+        const camDistBehind = 0.75;
+        const camHeight = 0.42;
+
+        const targetCamX = meshRef.current.position.x - forwardX * camDistBehind;
+        const targetCamZ = meshRef.current.position.z - forwardZ * camDistBehind;
+        const targetCamY = meshRef.current.position.y + camHeight;
+
+        // Smooth camera movement
+        state.camera.position.x = THREE.MathUtils.lerp(state.camera.position.x, targetCamX, 0.18);
+        state.camera.position.y = THREE.MathUtils.lerp(state.camera.position.y, targetCamY, 0.18);
+        state.camera.position.z = THREE.MathUtils.lerp(state.camera.position.z, targetCamZ, 0.18);
+
+        // Target to look at (slightly ahead of the AGV)
+        const lookAheadDist = 1.2;
+        const targetLookX = meshRef.current.position.x + forwardX * lookAheadDist;
+        const targetLookZ = meshRef.current.position.z + forwardZ * lookAheadDist;
+        const targetLookY = meshRef.current.position.y + 0.05;
+
+        state.camera.lookAt(new THREE.Vector3(targetLookX, targetLookY, targetLookZ));
+      }
     }
     
     // Rotate the LIDAR sensor module continuously
@@ -331,7 +465,18 @@ function JunctionNodes() {
   );
 }
 
-export default function Warehouse3D({ agvsData, lightMode }) {
+export default function Warehouse3D({ agvsData, lightMode, fpvMode, blockedEdges = [] }) {
+  const { camera } = useThree();
+  const prevFpvMode = useRef(fpvMode);
+
+  React.useEffect(() => {
+    if (prevFpvMode.current && !fpvMode) {
+      camera.position.set(0, 7, 7);
+      camera.lookAt(new THREE.Vector3(0, 0, 0));
+    }
+    prevFpvMode.current = fpvMode;
+  }, [fpvMode, camera]);
+
   return (
     <group>
       {/* Ambient and Directional Lights for clean 3D shadows */}
@@ -347,7 +492,7 @@ export default function Warehouse3D({ agvsData, lightMode }) {
       <gridHelper args={[8.2, 82, lightMode ? '#cbd5e1' : '#22293f', lightMode ? '#e2e8f0' : '#0a0d18']} position={[0, 0, 0]} />
       
       {/* Lane Lines */}
-      <LaneLines />
+      <LaneLines blockedEdges={blockedEdges} />
 
       {/* Glowing junction nodes */}
       <JunctionNodes />
@@ -362,7 +507,7 @@ export default function Warehouse3D({ agvsData, lightMode }) {
 
       {/* Render Dynamic AGV models */}
       {agvsData.map((agv) => (
-        <AGVModel key={agv.agv_id} agvData={agv} />
+        <AGVModel key={agv.agv_id} agvData={agv} fpvMode={fpvMode} />
       ))}
     </group>
   );

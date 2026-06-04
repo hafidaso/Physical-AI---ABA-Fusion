@@ -18,7 +18,8 @@ CONNECTED_CLIENTS: Set = set()
 GLOBAL_STATE = {
     "emergency_stop": False,
     "paused": True,  # Starts paused by default
-    "speed": 50
+    "speed": 50,
+    "blocked_edges": set()
 }
 
 # Dictionnaire global pour retrouver les AGV actifs lors d'un aiguillage manuel
@@ -80,6 +81,32 @@ async def register(websocket):
                         # Forcer l'état de pause de la simulation
                         GLOBAL_STATE["paused"] = True
                         print(f"🔄 Reset to START_ZONE ({START_ZONE}) and paused via WS")
+                elif command == "simulate_obstacle":
+                    if "AGV-01" in AGV_FLEET:
+                        agv_instance = AGV_FLEET["AGV-01"]
+                        if len(agv_instance.path) > 0 and agv_instance.current_node_idx > 0:
+                            prev_node = agv_instance.path[agv_instance.current_node_idx - 1]
+                            curr_node = agv_instance.path[agv_instance.current_node_idx]
+                            GLOBAL_STATE["blocked_edges"].add((prev_node, curr_node))
+                            GLOBAL_STATE["blocked_edges"].add((curr_node, prev_node))
+                            print(f"⚠️ Simulated obstacle on segment {prev_node}-{curr_node}")
+                elif command == "clear_obstacles":
+                    GLOBAL_STATE["blocked_edges"].clear()
+                    if "AGV-01" in AGV_FLEET:
+                        AGV_FLEET["AGV-01"].blocked_edges.clear()
+                    print("🧹 Cleared all blocked lanes.")
+                elif command == "toggle_blocked_edge":
+                    edge = data.get("edge")
+                    if edge and len(edge) == 2:
+                        u, v = edge[0], edge[1]
+                        if (u, v) in GLOBAL_STATE["blocked_edges"]:
+                            GLOBAL_STATE["blocked_edges"].discard((u, v))
+                            GLOBAL_STATE["blocked_edges"].discard((v, u))
+                            print(f"🛣️ Unblocked edge {u}-{v}")
+                        else:
+                            GLOBAL_STATE["blocked_edges"].add((u, v))
+                            GLOBAL_STATE["blocked_edges"].add((v, u))
+                            print(f"🛑 Blocked edge {u}-{v}")
             except Exception as e:
                 print(f"Error handling WS command: {e}")
     except websockets.exceptions.ConnectionClosed:
@@ -144,6 +171,14 @@ async def simulation_loop():
                 if "distance" in twin_data_1:
                     dist_val = float(twin_data_1["distance"])
                     agv1.distance_front_cm = 300.0 if dist_val <= 0.0 else dist_val
+                    # If physical AGV detects obstacle, block the current path segment globally
+                    if 0 < agv1.distance_front_cm <= 20.0:
+                        if len(agv1.path) > 0 and agv1.current_node_idx > 0:
+                            p_node = agv1.path[agv1.current_node_idx - 1]
+                            c_node = agv1.path[agv1.current_node_idx]
+                            GLOBAL_STATE["blocked_edges"].add((p_node, c_node))
+                            GLOBAL_STATE["blocked_edges"].add((c_node, p_node))
+                            print(f"⚠️ Physical AGV detected obstacle! Blocked segment {p_node}-{c_node}")
 
             # 1. Mise à jour de la physique si la simulation n'est pas en pause
             if not GLOBAL_STATE["paused"]:
@@ -171,7 +206,7 @@ async def simulation_loop():
                         agv1.start_mission("C")
                     
                 # Mise à jour de la physique
-                agv1.update(dt, dummy_agv, TRAFFIC_CONTROLLER, GLOBAL_STATE["emergency_stop"])
+                agv1.update(dt, dummy_agv, TRAFFIC_CONTROLLER, GLOBAL_STATE["emergency_stop"], GLOBAL_STATE["blocked_edges"])
             
             # Récupération des données physiques actuelles
             payload1 = agv1.get_telemetry_payload()
@@ -216,6 +251,7 @@ async def simulation_loop():
                 "paused": GLOBAL_STATE["paused"],
                 "speed": GLOBAL_STATE.get("speed", 150),
                 "agents": [payload1],
+                "blocked_edges": [list(edge) for edge in GLOBAL_STATE["blocked_edges"]],
                 "motor_speeds": {
                     "m1": agv1_m1,
                     "m2": agv1_m2,
