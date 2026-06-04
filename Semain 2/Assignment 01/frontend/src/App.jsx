@@ -30,27 +30,73 @@ export default function App() {
   const [fpvMode, setFpvMode] = useState(false);
   const [blockedEdges, setBlockedEdges] = useState([]);
   const wsRef = useRef(null);
+  // Speech queue: ensures only one audio plays at a time
+  const audioQueueRef = useRef([]);
+  const currentAudioRef = useRef(null);
+  const isPlayingRef = useRef(false);
+
+  const playNextInQueue = () => {
+    if (audioQueueRef.current.length === 0) {
+      isPlayingRef.current = false;
+      currentAudioRef.current = null;
+      return;
+    }
+    const nextAudioB64 = audioQueueRef.current.shift();
+    const audio = new Audio("data:audio/mp3;base64," + nextAudioB64);
+    currentAudioRef.current = audio;
+    isPlayingRef.current = true;
+    audio.onended = () => playNextInQueue();
+    audio.onerror = () => playNextInQueue();
+    audio.play().catch(() => playNextInQueue());
+  };
+
+  const enqueueSpeech = (audioB64, interrupt = false) => {
+    if (interrupt) {
+      // Stop current audio immediately and clear the queue
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+        currentAudioRef.current.src = "";
+        currentAudioRef.current = null;
+      }
+      audioQueueRef.current = [];
+      isPlayingRef.current = false;
+    }
+    audioQueueRef.current.push(audioB64);
+    if (!isPlayingRef.current) {
+      playNextInQueue();
+    }
+  };
 
   // Establish WebSocket connection with auto-reconnection
   useEffect(() => {
     let reconnectTimer;
+    let isDestroyed = false; // guard against StrictMode double-invoke
 
     const connectWS = () => {
+      // Close any existing connection first (StrictMode safety)
+      if (wsRef.current && wsRef.current.readyState <= 1) {
+        wsRef.current.onclose = null; // prevent auto-reconnect loop
+        wsRef.current.close();
+      }
+      if (isDestroyed) return;
       setWsStatus("CONNECTING");
       const ws = new WebSocket("ws://localhost:8765");
       wsRef.current = ws;
 
       ws.onopen = () => {
+        if (isDestroyed) { ws.close(); return; }
         setWsStatus("CONNECTED");
         console.log("🔌 Telemetry WebSocket Stream established.");
       };
 
       ws.onmessage = (event) => {
+        if (isDestroyed) return;
         try {
           const payload = JSON.parse(event.data);
           if (payload.type === "speech" && payload.audio) {
-            const audio = new Audio("data:audio/mp3;base64," + payload.audio);
-            audio.play().catch(err => console.warn("🔊 Audio playback blocked or failed:", err));
+            // interrupt=true for urgent events (estop, pause), false for regular announcements
+            const interrupt = payload.interrupt === true;
+            enqueueSpeech(payload.audio, interrupt);
             return;
           }
           if (payload.agents) {
@@ -88,10 +134,13 @@ export default function App() {
     connectWS();
 
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
+      isDestroyed = true; // silence any in-flight handlers (React StrictMode safety)
       clearTimeout(reconnectTimer);
+      if (wsRef.current) {
+        wsRef.current.onclose = null; // don't auto-reconnect on intentional teardown
+        wsRef.current.close();
+        wsRef.current = null;
+      }
     };
   }, []);
 
