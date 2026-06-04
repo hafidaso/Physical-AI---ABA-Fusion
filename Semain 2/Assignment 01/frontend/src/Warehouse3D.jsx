@@ -176,29 +176,27 @@ function LaneLines() {
 
 function AGVModel({ agvData }) {
   const meshRef = useRef();
+  const lidarRef = useRef();
 
   // Extract variables
   const { agv_id, position, state, target_zone, distance_front_cm } = agvData;
   const x_px = position?.x * 100 || 400;
   const y_px = position?.y * 100 || 400;
   
-  // Convert position to 3D coordinate space (with right-side path offset of ~10px / 0.1m)
-  // Let's compute direction of travel for rotation and offset
-  // We can interpolate position smoothly using useFrame
+  // Convert position to 3D coordinate space (with smooth interpolation)
   useFrame((state, delta) => {
     if (meshRef.current) {
-      // Direct position mapping from telemetry
       const targetX = (x_px - 400) / 100;
       const targetZ = (y_px - 400) / 100;
       
-      // Smooth lerp (interpolation) for ultra-smooth 3D movement
-      meshRef.current.position.x = THREE.MathUtils.lerp(meshRef.current.position.x, targetX, 0.25);
-      meshRef.current.position.z = THREE.MathUtils.lerp(meshRef.current.position.z, targetZ, 0.25);
-      meshRef.current.position.y = 0.12; // half of height (0.24)
-      
-      // Calculate rotation based on travel vector
-      // Standard heuristic: compare current pos to previous pos
-      // Since it's direct lerp, it faces the direction of travel
+      meshRef.current.position.x = THREE.MathUtils.lerp(meshRef.current.position.x, targetX, 0.22);
+      meshRef.current.position.z = THREE.MathUtils.lerp(meshRef.current.position.z, targetZ, 0.22);
+      meshRef.current.position.y = 0.12; 
+    }
+    
+    // Rotate the LIDAR sensor module continuously
+    if (lidarRef.current) {
+      lidarRef.current.rotation.y += delta * 10.0;
     }
   });
 
@@ -210,15 +208,25 @@ function AGVModel({ agvData }) {
   const is_stop = state === "STOP" || distance_front_cm <= 25;
   
   let coneColor = '#2ecc71'; // normal
+  let ledColor = '#10b981';  // green (Normal Moving)
+  let ledEmissive = '#059669';
+
   if (is_in_zone_x) {
     coneColor = '#c34a36'; // zone X (Terracotta)
+    ledColor = '#f43f5e';  // Rose-red (Intersection Warn)
+    ledEmissive = '#e11d48';
   } else if (is_stop) {
     coneColor = '#e74c3c'; // emergency/safety stop (Red)
+    ledColor = '#ef4444';  // red (Stopped)
+    ledEmissive = '#dc2626';
+  } else if (state === 'WAIT' || state === 'YIELDING') {
+    ledColor = '#f59e0b';  // Orange (Waiting)
+    ledEmissive = '#d97706';
   }
 
   return (
     <group ref={meshRef} position={[ (x_px - 400) / 100, 0.12, (y_px - 400) / 100 ]}>
-      {/* 3D AGV Chassis Box (minimalist block robot) */}
+      {/* 3D AGV Chassis Box */}
       <mesh castShadow receiveShadow>
         <boxGeometry args={[0.36, 0.18, 0.26]} />
         <meshStandardMaterial color={chassisColor} roughness={0.2} metalness={0.1} />
@@ -227,8 +235,47 @@ function AGVModel({ agvData }) {
       {/* Top Cap */}
       <mesh position={[0, 0.11, 0]}>
         <boxGeometry args={[0.26, 0.04, 0.18]} />
-        <meshStandardMaterial color="#1a2035" roughness={0.5} />
+        <meshStandardMaterial color="#111528" roughness={0.5} />
       </mesh>
+
+      {/* Rotating LIDAR Unit */}
+      {/* Base */}
+      <mesh position={[0, 0.13, 0.04]}>
+        <cylinderGeometry args={[0.04, 0.04, 0.02, 16]} />
+        <meshStandardMaterial color="#0b0f19" roughness={0.5} />
+      </mesh>
+      {/* Rotating Cylinder head */}
+      <group ref={lidarRef} position={[0, 0.15, 0.04]}>
+        <mesh castShadow>
+          <cylinderGeometry args={[0.035, 0.035, 0.025, 16]} />
+          <meshStandardMaterial color="#1a202c" roughness={0.2} />
+        </mesh>
+        {/* Red Lidar laser dot */}
+        <mesh position={[0.032, 0, 0]}>
+          <boxGeometry args={[0.008, 0.008, 0.015]} />
+          <meshBasicMaterial color="#ef4444" />
+        </mesh>
+      </group>
+
+      {/* Glowing Status LED indicator */}
+      <mesh position={[0, 0.138, -0.06]}>
+        <cylinderGeometry args={[0.02, 0.02, 0.02, 8]} />
+        <meshStandardMaterial 
+          color={ledColor} 
+          emissive={ledEmissive} 
+          emissiveIntensity={2.5} 
+          roughness={0.1} 
+        />
+      </mesh>
+
+      {/* Dynamic floor PointLight reflection */}
+      <pointLight 
+        position={[0, 0.22, -0.06]} 
+        color={ledColor} 
+        intensity={is_stop ? 2.5 : 1.2} 
+        distance={2.5} 
+        decay={2.0}
+      />
 
       {/* AGV Wheels (Small cylinders) */}
       {[-0.12, 0.12].map((xOffset, idx) => (
@@ -236,7 +283,7 @@ function AGVModel({ agvData }) {
           {[-0.14, 0.14].map((zOffset, zIdx) => (
             <mesh key={zIdx} position={[0, 0, zOffset]} rotation={[Math.PI / 2, 0, 0]}>
               <cylinderGeometry args={[0.05, 0.05, 0.04, 8]} />
-              <meshStandardMaterial color="#111" roughness={0.9} />
+              <meshStandardMaterial color="#080808" roughness={0.9} />
             </mesh>
           ))}
         </group>
@@ -244,8 +291,8 @@ function AGVModel({ agvData }) {
 
       {/* Front Label Indicator */}
       <Text
-        position={[0, 0.22, 0]}
-        fontSize={0.15}
+        position={[0, 0.25, 0]}
+        fontSize={0.13}
         color="#fff"
         backgroundColor="#050a15"
         padding={[0.02, 0.06]}
@@ -257,11 +304,29 @@ function AGVModel({ agvData }) {
       </Text>
 
       {/* Translucent Front-facing Sensor Cone */}
-      {/* Represented as a flat wedge shape projected on the ground */}
       <mesh position={[0.26, -0.1, 0]} rotation={[0, 0, 0]}>
         <coneGeometry args={[0.45, 0.8, 4, 1, false, 0]} />
-        <meshBasicMaterial color={coneColor} transparent opacity={0.2} />
+        <meshBasicMaterial color={coneColor} transparent opacity={0.18} />
       </mesh>
+    </group>
+  );
+}
+
+// Glowing spheres at junction nodes
+function JunctionNodes() {
+  return (
+    <group>
+      {Object.entries(NODES_3D).map(([key, pos]) => (
+        <mesh key={key} position={pos}>
+          <sphereGeometry args={[0.05, 16, 16]} />
+          <meshStandardMaterial 
+            color="#3b82f6" 
+            emissive="#1d4ed8" 
+            emissiveIntensity={1.2}
+            roughness={0.1}
+          />
+        </mesh>
+      ))}
     </group>
   );
 }
@@ -270,19 +335,22 @@ export default function Warehouse3D({ agvsData, lightMode }) {
   return (
     <group>
       {/* Ambient and Directional Lights for clean 3D shadows */}
-      <ambientLight intensity={lightMode ? 0.8 : 0.4} />
+      <ambientLight intensity={lightMode ? 0.8 : 0.35} />
       <directionalLight 
         position={[8, 12, 5]} 
-        intensity={lightMode ? 1.5 : 0.9} 
+        intensity={lightMode ? 1.5 : 1.0} 
         castShadow 
         shadow-mapSize={[1024, 1024]} 
       />
       
       {/* Subtle floor grid */}
-      <gridHelper args={[8.2, 82, lightMode ? '#cbd5e1' : '#353050', lightMode ? '#e2e8f0' : '#12182c']} position={[0, 0, 0]} />
+      <gridHelper args={[8.2, 82, lightMode ? '#cbd5e1' : '#22293f', lightMode ? '#e2e8f0' : '#0a0d18']} position={[0, 0, 0]} />
       
       {/* Lane Lines */}
       <LaneLines />
+
+      {/* Glowing junction nodes */}
+      <JunctionNodes />
 
       {/* Render Zones */}
       {Object.entries(ZONES_3D).map(([key, value]) => (

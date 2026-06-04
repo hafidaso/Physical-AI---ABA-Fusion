@@ -199,7 +199,7 @@ export default function App() {
             {lightMode ? '🌙' : '☀️'}
           </button>
         </div>
-        <p className="hud-developer" style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '-10px', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 'bold' }}>Developed by: Hafida Belayd</p>
+        <p className="hud-developer" style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '-10px', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 'bold' }}>Developed by: Hafida Belayd & Abdelkhalek Hanbel</p>
 
         {agvs.map((agv) => {
           const inZoneX = isAgentInZoneX(agv);
@@ -307,8 +307,8 @@ export default function App() {
                 </span>
               </div>
 
-              <div className="manual-dispatch-section" style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed rgba(234, 235, 237, 0.1)' }}>
-                <div style={{ fontSize: '10px', color: '#7887a5', marginBottom: '5px', fontWeight: 'bold', letterSpacing: '0.05em' }}>MANUAL DISPATCH:</div>
+              <div className="manual-dispatch-section" style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed var(--color-panel-border)' }}>
+                <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginBottom: '5px', fontWeight: 'bold', letterSpacing: '0.05em' }}>MANUAL DISPATCH:</div>
                 <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
                   {['A', 'B', 'C', 'D', 'R'].map((zone) => (
                     <button
@@ -317,16 +317,28 @@ export default function App() {
                       disabled={agv.connectivity_status === "OFFLINE" || emergencyStop || paused}
                       style={{
                         flex: 1,
-                        padding: '5px 0',
+                        padding: '6px 0',
                         fontSize: '11px',
-                        background: agv.target_zone === zone ? 'var(--state-wait)' : '#1c2a46',
-                        color: agv.target_zone === zone ? '#000' : '#eaebed',
+                        background: agv.target_zone === zone ? 'var(--state-wait)' : 'rgba(255, 255, 255, 0.05)',
+                        color: agv.target_zone === zone ? '#000' : 'var(--color-text-ivory)',
                         border: '1px solid var(--color-panel-border)',
-                        borderRadius: '4px',
-                        fontWeight: 'bold',
+                        borderRadius: '6px',
+                        fontWeight: '700',
+                        fontFamily: 'Space Grotesk, sans-serif',
                         cursor: agv.connectivity_status === "OFFLINE" || emergencyStop || paused ? 'not-allowed' : 'pointer',
                         opacity: agv.connectivity_status === "OFFLINE" || emergencyStop || paused ? 0.4 : 1,
-                        transition: 'background 0.2s, color 0.2s'
+                        transition: 'all 0.2s ease',
+                        boxShadow: agv.target_zone === zone ? '0 0 10px rgba(245, 158, 11, 0.4)' : 'none'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (agv.connectivity_status !== "OFFLINE" && !emergencyStop && !paused && agv.target_zone !== zone) {
+                          e.target.style.background = 'rgba(255, 255, 255, 0.12)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (agv.target_zone !== zone) {
+                          e.target.style.background = 'rgba(255, 255, 255, 0.05)';
+                        }
                       }}
                     >
                       {zone}
@@ -341,19 +353,27 @@ export default function App() {
         {/* System Controls Panel */}
         <div className="gateways-panel" style={{ marginBottom: '15px' }}>
           <div className="gateways-title">SYSTEM CONTROLS</div>
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
             <button 
               onClick={() => sendCommand("pause")}
               style={{
                 flex: 1,
                 padding: '10px 5px',
-                background: paused ? 'var(--state-wait)' : '#1c2a46',
-                color: paused ? '#000' : '#fff',
+                background: paused ? 'var(--state-wait)' : 'rgba(255, 255, 255, 0.05)',
+                color: paused ? '#000' : 'var(--color-text-ivory)',
                 border: '1px solid var(--color-panel-border)',
-                borderRadius: '6px',
-                fontWeight: 'bold',
+                borderRadius: '8px',
+                fontWeight: '700',
+                fontFamily: 'Space Grotesk, sans-serif',
                 cursor: 'pointer',
-                transition: 'background 0.2s'
+                transition: 'all 0.2s ease',
+                boxShadow: paused ? '0 0 10px rgba(245, 158, 11, 0.4)' : 'none'
+              }}
+              onMouseEnter={(e) => {
+                if (!paused) e.target.style.background = 'rgba(255, 255, 255, 0.12)';
+              }}
+              onMouseLeave={(e) => {
+                if (!paused) e.target.style.background = 'rgba(255, 255, 255, 0.05)';
               }}
             >
               {paused ? "RESUME" : "PAUSE"}
@@ -361,15 +381,23 @@ export default function App() {
             <button 
               onClick={() => sendCommand("estop")}
               style={{
-                flex: 1,
+                flex: 1.2,
                 padding: '10px 5px',
-                background: emergencyStop ? 'var(--color-terracotta)' : '#73231e',
+                background: emergencyStop ? 'var(--color-terracotta)' : '#991b1b',
                 color: '#fff',
                 border: '1px solid var(--color-panel-border)',
-                borderRadius: '6px',
-                fontWeight: 'bold',
+                borderRadius: '8px',
+                fontWeight: '700',
+                fontFamily: 'Space Grotesk, sans-serif',
                 cursor: 'pointer',
-                transition: 'background 0.2s'
+                transition: 'all 0.2s ease',
+                boxShadow: emergencyStop ? '0 0 15px rgba(239, 68, 68, 0.5)' : 'none'
+              }}
+              onMouseEnter={(e) => {
+                if (!emergencyStop) e.target.style.background = '#7f1d1d';
+              }}
+              onMouseLeave={(e) => {
+                if (!emergencyStop) e.target.style.background = '#991b1b';
               }}
             >
               {emergencyStop ? "RESUME FLEET" : "STOP FLEET (E-STOP)"}
@@ -377,31 +405,45 @@ export default function App() {
             <button 
               onClick={() => sendCommand("reset", { agv_id: "ALL" })}
               style={{
-                flex: 1,
+                flex: 1.1,
                 padding: '10px 5px',
-                background: '#c27d15', // Oranged/Yellow for Reset
-                color: '#fff',
-                border: '1px solid var(--color-panel-border)',
-                borderRadius: '6px',
-                fontWeight: 'bold',
+                background: 'rgba(217, 119, 6, 0.2)',
+                color: '#f59e0b',
+                border: '1px solid rgba(217, 119, 6, 0.4)',
+                borderRadius: '8px',
+                fontWeight: '700',
+                fontFamily: 'Space Grotesk, sans-serif',
                 cursor: 'pointer',
-                transition: 'background 0.2s'
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.background = 'rgba(217, 119, 6, 0.35)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = 'rgba(217, 119, 6, 0.2)';
               }}
             >
-              ABORT MISSIONS
+              ABORT
             </button>
             <button 
               onClick={() => sendCommand("reset_to_start")}
               style={{
-                flex: 1,
+                flex: 1.1,
                 padding: '10px 5px',
-                background: '#4a607a', // Soft blue for C reset
-                color: '#fff',
-                border: '1px solid var(--color-panel-border)',
-                borderRadius: '6px',
-                fontWeight: 'bold',
+                background: 'rgba(59, 130, 246, 0.2)',
+                color: '#3b82f6',
+                border: '1px solid rgba(59, 130, 246, 0.4)',
+                borderRadius: '8px',
+                fontWeight: '700',
+                fontFamily: 'Space Grotesk, sans-serif',
                 cursor: 'pointer',
-                transition: 'background 0.2s'
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.background = 'rgba(59, 130, 246, 0.35)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = 'rgba(59, 130, 246, 0.2)';
               }}
             >
               RESET TO C

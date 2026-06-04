@@ -1,6 +1,6 @@
 # AGV Fleet Simulator & 3D Digital Twin (Industrial Grade)
 
-**Developed by: Hafida Belayd**
+**Developed by: Hafida Belayd & Abdelkhalek Hanbel**
 **Project: Physical AI - ABA Fusion (Semaine 2)**
 
 This project features a multi-agent Automated Guided Vehicle (AGV) Fleet simulator using a **Cyber-Physical Architecture**. It synchronizes a real-world ESP32-based physical robot with a **3D Digital Twin** (WebSockets + React Three Fiber). 

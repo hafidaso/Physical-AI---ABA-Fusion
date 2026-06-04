@@ -1,10 +1,9 @@
 #include <Arduino.h>
-
+#include <LiquidCrystal_I2C.h>
 #include <WiFi.h>
-
 #include <WiFiClientSecure.h>
-
 #include <PubSubClient.h>
+#include <Wire.h>
 
 // --- Configuration Wi-Fi ---
 
@@ -28,9 +27,62 @@ WiFiClientSecure espClient;
 
 PubSubClient client(espClient);
 
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+const char *TOPIC_TELEMETRY = "hafida/robot/twin2/telemetry";
+const char *DEVICE_ID = "hafida-smart-robot-safety-2";
+
+byte heart[8] = {
+  0b00000,
+  0b01010,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b01110,
+  0b00100,
+  0b00000
+};
+byte battery[8] = {
+  0b01110,
+  0b11111,
+  0b10001,
+  0b10001,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b11111
+};
+byte robot[8] = {
+  0b00000,
+  0b01010,
+  0b11111,
+  0b01110,
+  0b11111,
+  0b10101,
+  0b01010,
+  0b00000
+};
+byte hazard[8] = {
+  0b00100,
+  0b01110,
+  0b01110,
+  0b11011,
+  0b11011,
+  0b11111,
+  0b11111,
+  0b00000
+};
+
 String currentCommand = "STOP";
 int robotSpeed = 50;
 int robotTurnSpeed = 255;
+
+int currentM1 = 0, currentM2 = 0, currentM3 = 0, currentM4 = 0;
+int lastSpeed = 999;
+float lastDistance = -999.0;
+
+const int BATTERY_1_LEVEL = 80;
+const int BATTERY_2_LEVEL = 100;
 
 // --- Capteur de distance HC-SR04 ---
 
@@ -70,10 +122,16 @@ const bool INVERT_M4 = true; // Droite Avant
 const float SAFETY_STOP_CM = 20.0;
 
 float latestDistance = -1.0;
+float lastValidDistance = -1.0;
+bool wasObstacle = false;
 
 unsigned long lastDistanceTime = 0;
+unsigned long lastSerialTime = 0;
+unsigned long lastLcdTime = 0;
 
 const unsigned long DISTANCE_INTERVAL = 60;
+const unsigned long TELEMETRY_INTERVAL = 200;
+const unsigned long LCD_INTERVAL = 250;
 
 bool isObstacleTooClose() {
 
@@ -92,6 +150,7 @@ void setMotor(int motorIndex, int speed) {
   int pwmValue = constrain(abs(speed), 0, 255);
 
   if (motorIndex == 1) {
+    currentM1 = speed;
 
     bool actualDir = INVERT_M1 ? !dir : dir;
 
@@ -100,6 +159,7 @@ void setMotor(int motorIndex, int speed) {
     analogWrite(PWMB1, pwmValue);
 
   } else if (motorIndex == 2) {
+    currentM2 = speed;
 
     bool actualDir = INVERT_M2 ? !dir : dir;
 
@@ -108,6 +168,7 @@ void setMotor(int motorIndex, int speed) {
     analogWrite(PWMB2, pwmValue);
 
   } else if (motorIndex == 3) {
+    currentM3 = speed;
 
     bool actualDir = INVERT_M3 ? !dir : dir;
 
@@ -116,6 +177,7 @@ void setMotor(int motorIndex, int speed) {
     analogWrite(PWMA3, pwmValue);
 
   } else if (motorIndex == 4) {
+    currentM4 = speed;
 
     bool actualDir = INVERT_M4 ? !dir : dir;
 
@@ -165,21 +227,106 @@ void moveRobot(String command) {
 }
 
 float readDistanceCM() {
+  for (int i = 0; i < 2; i++) {
+    digitalWrite(TRIG_PIN, LOW);
+    delayMicroseconds(2);
+    digitalWrite(TRIG_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(TRIG_PIN, LOW);
 
-  digitalWrite(TRIG_PIN, LOW);
-  delayMicroseconds(2);
-
-  digitalWrite(TRIG_PIN, HIGH);
-  delayMicroseconds(10);
-
-  digitalWrite(TRIG_PIN, LOW);
-
-  long duration = pulseIn(ECHO_PIN, HIGH, 10000);
-
-  if (duration > 0)
-    return (duration * 0.0343) / 2.0;
-
+    long duration = pulseIn(ECHO_PIN, HIGH, 10000);
+    if (duration > 0) {
+      float distance = (duration * 0.0343) / 2.0;
+      lastValidDistance = distance;
+      return distance;
+    }
+    delayMicroseconds(200);
+  }
+  lastValidDistance = 999.0;
   return 999.0;
+}
+
+void sendTelemetry(float distance) {
+  Serial.println("--- AGV TELEMETRY ---");
+  if (distance < 0) {
+    Serial.println("Distance: 0 cm (Hors de portée awla mochkil)");
+  } else {
+    Serial.print("Distance: ");
+    Serial.print(distance);
+    Serial.println(" cm");
+  }
+  Serial.printf("Motors   | M1: %d | M2: %d | M3: %d | M4: %d\n", currentM1,
+                currentM2, currentM3, currentM4);
+  Serial.printf("Battery  | BAT1: %d%% | BAT2: %d%%\n", BATTERY_1_LEVEL,
+                BATTERY_2_LEVEL);
+  Serial.println("---------------------\n");
+
+  if (client.connected()) {
+    char mqttPayload[200];
+    snprintf(mqttPayload, sizeof(mqttPayload),
+             "{\"device\":\"%s\",\"distance\":%.1f,\"motors\":[%d,%d,%d,%d],"
+             "\"battery\":[%d,%d]}",
+             DEVICE_ID, (distance < 0 ? 0.0 : distance), currentM1, currentM2,
+             currentM3, currentM4, BATTERY_1_LEVEL, BATTERY_2_LEVEL);
+
+    client.publish(TOPIC_TELEMETRY, mqttPayload);
+  }
+}
+
+void applySafetyStop() {
+  bool currentlyClose = isObstacleTooClose();
+
+  if (currentlyClose && !wasObstacle) {
+    sendTelemetry(latestDistance);
+    lastSerialTime = millis();
+    wasObstacle = true;
+  } else if (!currentlyClose && wasObstacle) {
+    sendTelemetry(latestDistance);
+    lastSerialTime = millis();
+    wasObstacle = false;
+  }
+
+  if (!currentlyClose) {
+    return;
+  }
+
+  if (currentM1 > 0 || currentM2 > 0 || currentM3 > 0 || currentM4 > 0) {
+    Serial.print("!!! EMERGENCY STOP: Distance = ");
+    Serial.print(latestDistance);
+    Serial.println(" cm !!!");
+  }
+
+  if (currentM1 > 0) setMotor(1, 0);
+  if (currentM2 > 0) setMotor(2, 0);
+  if (currentM3 > 0) setMotor(3, 0);
+  if (currentM4 > 0) setMotor(4, 0);
+}
+
+void updateLCD(int speed, float distance, int batteryVal) {
+  char line1[17];
+  char line2[17];
+
+  char statusChar = ' ';
+  if (isObstacleTooClose()) {
+    statusChar = (millis() / 250 % 2 == 0) ? (char)3 : ' '; // Blinking warning icon
+  } else {
+    statusChar = (millis() / 500 % 2 == 0) ? (char)0 : ' '; // Heartbeat blink icon
+  }
+
+  // Formatting Line 1: [RobotIcon] Spd:XXXX [BatteryIcon]XXX%
+  sprintf(line1, "%c Spd:%-4d %c%3d%%", (char)2, speed, (char)1, batteryVal);
+
+  // Formatting Line 2: [Heart/Warning] Dist: X cm
+  if (distance > 900.0) {
+    sprintf(line2, "%c Dist: CLEAR    ", statusChar);
+  } else {
+    sprintf(line2, "%c Dist: %-5.1f cm  ", statusChar, distance);
+  }
+
+  lcd.setCursor(0, 0);
+  lcd.print(line1);
+  lcd.setCursor(0, 1);
+  lcd.print(line2);
 }
 
 void callback(char *topic, byte *payload, unsigned int length) {
@@ -231,9 +378,36 @@ void reconnect() {
 }
 
 void setup() {
+  Serial.begin(115200);
 
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
+
+  Wire.begin(21, 22);
+  lcd.init();
+  lcd.backlight();
+
+  // Create custom character sets
+  lcd.createChar(0, heart);
+  lcd.createChar(1, battery);
+  lcd.createChar(2, robot);
+  lcd.createChar(3, hazard);
+
+  // Booting animation sequence
+  lcd.setCursor(0, 0);
+  lcd.print("Booting AGV OS ");
+  lcd.write(2); // robot icon
+  for (int i = 0; i < 16; i++) {
+    lcd.setCursor(i, 1);
+    lcd.write(255); // Solid block loading bar segment
+    delay(60);
+  }
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("System Active! ");
+  lcd.write(0); // heart icon
+  delay(500);
+  lcd.clear();
 
   pinMode(PWMB1, OUTPUT);
   pinMode(BIN2_1, OUTPUT);
@@ -263,7 +437,6 @@ void setup() {
 }
 
 void loop() {
-
   if (!client.connected()) {
     reconnect();
   }
@@ -273,10 +446,25 @@ void loop() {
   unsigned long now = millis();
 
   if (now - lastDistanceTime >= DISTANCE_INTERVAL) {
-
     latestDistance = readDistanceCM();
-
+    applySafetyStop();
     lastDistanceTime = now;
+  }
+
+  if (now - lastSerialTime >= TELEMETRY_INTERVAL) {
+    sendTelemetry(latestDistance);
+    lastSerialTime = now;
+  }
+
+  if (now - lastLcdTime >= LCD_INTERVAL) {
+    int activeSpeed = 0;
+    if (currentCommand == "FORWARD" || currentCommand == "BACKWARD") {
+      activeSpeed = robotSpeed;
+    } else if (currentCommand == "LEFT" || currentCommand == "RIGHT") {
+      activeSpeed = robotTurnSpeed;
+    }
+    updateLCD(activeSpeed, latestDistance, BATTERY_1_LEVEL);
+    lastLcdTime = now;
   }
 
   moveRobot(currentCommand);
