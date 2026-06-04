@@ -17,12 +17,14 @@ CONNECTED_CLIENTS: Set = set()
 # État global de la simulation (contrôlé à distance par l'IHM)
 GLOBAL_STATE = {
     "emergency_stop": False,
-    "paused": False
+    "paused": True,  # Starts paused by default
+    "speed": 50
 }
 
 # Dictionnaire global pour retrouver les AGV actifs lors d'un aiguillage manuel
 AGV_FLEET = {}
 TRAFFIC_CONTROLLER = ZoneXTrafficController()
+TELEMETRY_SENDER_REF = None
 
 async def register(websocket):
     """Enregistre un nouveau client WebSocket et écoute les commandes envoyées par l'IHM."""
@@ -39,6 +41,12 @@ async def register(websocket):
                 elif command == "pause":
                     GLOBAL_STATE["paused"] = not GLOBAL_STATE["paused"]
                     print(f"⏸️ Pause toggled via WS: {GLOBAL_STATE['paused']}")
+                elif command == "set_speed":
+                    speed_val = int(data.get("value", 150))
+                    GLOBAL_STATE["speed"] = speed_val
+                    if TELEMETRY_SENDER_REF is not None:
+                        TELEMETRY_SENDER_REF.send_string_command(TELEMETRY_SENDER_REF.mqtt_topic_cmd2, f"SPEED:{speed_val}")
+                    print(f"⚡ Speed set to {speed_val} via WS")
                 elif command == "dispatch":
                     agv_id = data.get("agv_id")
                     target = data.get("target")
@@ -56,6 +64,22 @@ async def register(websocket):
                         for agv in AGV_FLEET.values():
                             agv.abort_mission(TRAFFIC_CONTROLLER)
                         print(f"🔄 Soft Reset ALL via WS")
+                elif command == "reset_to_start":
+                    if "AGV-01" in AGV_FLEET:
+                        agv_instance = AGV_FLEET["AGV-01"]
+                        agv_instance.abort_mission(TRAFFIC_CONTROLLER)
+                        from warehouse_map import NODES
+                        start_coords = NODES[START_ZONE]
+                        agv_instance.x = float(start_coords[0])
+                        agv_instance.y = float(start_coords[1])
+                        agv_instance.current_zone = START_ZONE
+                        agv_instance.target_zone = START_ZONE
+                        # Envoyer un STOP au robot physique
+                        if TELEMETRY_SENDER_REF is not None:
+                            TELEMETRY_SENDER_REF.send_string_command(TELEMETRY_SENDER_REF.mqtt_topic_cmd2, "STOP")
+                        # Forcer l'état de pause de la simulation
+                        GLOBAL_STATE["paused"] = True
+                        print(f"🔄 Reset to START_ZONE ({START_ZONE}) and paused via WS")
             except Exception as e:
                 print(f"Error handling WS command: {e}")
     except websockets.exceptions.ConnectionClosed:
@@ -69,16 +93,31 @@ async def broadcast(message: str):
     if CONNECTED_CLIENTS:
         await asyncio.gather(*[client.send(message) for client in CONNECTED_CLIENTS], return_exceptions=True)
 
+# --- Calibrage de la vitesse physique ---
+# Ajustez cette valeur (de 0 à 255) pour calibrer la vitesse de votre voiture réelle
+# afin qu'elle parcoure la distance de 1.5m de manière synchrone avec le jumeau 3D.
+PHYSICAL_MAX_PWM = 130
+
+# Puissance pour la rotation en place (souvent plus élevée pour surmonter le frottement au sol)
+PHYSICAL_ROTATION_PWM = 170
+
+# Zone de départ initiale (A, B, C ou D)
+START_ZONE = "C"
+
 async def simulation_loop():
     """Boucle de physique asynchrone tournant à 10 Hz (toutes les 100 ms) pour une animation 3D fluide."""
-    # Initialisation de nos deux robots AGV
-    agv1 = AGV("AGV-01", "A", (255, 120, 80)) # Warm Coral
-    agv2 = AGV("AGV-02", "B", (46, 204, 250)) # Bright Teal
+    # Initialisation d'un seul robot AGV-01 démarrant de la Zone de départ configurée
+    agv1 = AGV("AGV-01", START_ZONE, (255, 120, 80)) # Warm Coral
+    agv1.rotation_speed_dps = 40.91 # Calibrated for exactly 2.2s turn duration (90 degrees)
+    dummy_agv = AGV("DUMMY", "R", (0, 0, 0))
+    dummy_agv.x = 9999.0
+    dummy_agv.y = 9999.0
+    dummy_agv.state = "OFFLINE"
     
-    # On les enregistre dans notre dictionnaire global pour pouvoir les aiguiller manuellement via WebSocket
+    # On l'enregistre dans notre dictionnaire global pour pouvoir l'aiguiller manuellement via WebSocket
     AGV_FLEET["AGV-01"] = agv1
-    AGV_FLEET["AGV-02"] = agv2
     
+    global TELEMETRY_SENDER_REF
     # Configuration de la télémétrie en arrière-plan (fichiers, MQTT, etc.)
     telemetry_sender = TelemetrySender(
         webhook_url="http://127.0.0.1:5000/webhook",
@@ -86,112 +125,113 @@ async def simulation_loop():
         mqtt_topic_twin="hafida/robot/twin/telemetry",
         mqtt_topic_cmd="hafida/robot/twin/command",
         mqtt_topic_twin2="hafida/robot/twin2/telemetry",
-        mqtt_topic_cmd2="hafida/robot/twin2/command",
+        mqtt_topic_cmd2="robot/control",
         mqtt_username="hivemq.webclient.1775653497883",
         mqtt_password="1B%.CwaP:Kdr2I93k*Ap"
     )
+    TELEMETRY_SENDER_REF = telemetry_sender
     
     dt = 0.1  # Pas de temps de 100 ms
     telemetry_timer = 0.0
     
-    print("🤖 Headless Simulator loop started.")
+    print("🤖 Headless Simulator loop started (Single AGV mode - C -> A -> B sequence).")
     try:
         while True:
-            # Lier les données MQTT aux AGVs
-            twin_data_1 = telemetry_sender.get_physical_twin_data("hafida-smart-robot-safety")
+            # Lier les données MQTT à AGV-01 (ID de votre ESP32: hafida-smart-robot-safety-2)
+            twin_data_1 = telemetry_sender.get_physical_twin_data("hafida-smart-robot-safety-2")
             if twin_data_1:
                 agv1.is_digital_twin_active = True
                 if "distance" in twin_data_1:
                     dist_val = float(twin_data_1["distance"])
                     agv1.distance_front_cm = 300.0 if dist_val <= 0.0 else dist_val
-            
-            twin_data_2 = telemetry_sender.get_physical_twin_data("hafida-smart-robot-safety-2")
-            if twin_data_2:
-                agv2.is_digital_twin_active = True
-                if "distance" in twin_data_2:
-                    dist_val = float(twin_data_2["distance"])
-                    agv2.distance_front_cm = 300.0 if dist_val <= 0.0 else dist_val
 
             # 1. Mise à jour de la physique si la simulation n'est pas en pause
             if not GLOBAL_STATE["paused"]:
-                agv1.max_speed_mps = 1.0 # default autonomous speed
+                # Calibrated speed at 150 PWM is 1.5385 m/s
+                pwm_speed = GLOBAL_STATE.get("speed", 50)
+                agv1.max_speed_mps = (pwm_speed / 150.0) * 1.5385
+                
+                # Calibrated turn speed at 170 PWM is 40.91 dps
+                # Turning is locked to max speed 255
+                agv1.rotation_speed_dps = (255 / 170.0) * 40.91
                 if agv1.state == "IDLE" and not GLOBAL_STATE["emergency_stop"]:
-                    choices = [z for z in ['A', 'B', 'C', 'D'] if z != agv1.current_zone]
-                    agv1.start_mission(random.choice(choices))
-                        
-                agv2.max_speed_mps = 1.0
-                if agv2.state == "IDLE" and not GLOBAL_STATE["emergency_stop"]:
-                    choices = [z for z in ['A', 'B', 'C', 'D'] if z != agv2.current_zone]
-                    agv2.start_mission(random.choice(choices))
+                    # Séquence de mission : C -> A -> B
+                    # Séquence de mission : boucle complète continue (C -> A -> B -> D -> C)
+                    if agv1.current_zone == "C":
+                        print("🏁 Starting leg: C -> A")
+                        agv1.start_mission("A")
+                    elif agv1.current_zone == "A":
+                        print("🏁 Starting leg: A -> B")
+                        agv1.start_mission("B")
+                    elif agv1.current_zone == "B":
+                        print("🏁 Starting leg: B -> D")
+                        agv1.start_mission("D")
+                    elif agv1.current_zone == "D":
+                        print("🏁 Starting leg: D -> C")
+                        agv1.start_mission("C")
                     
-                # Mise à jour de la physique et des capteurs de distance
-                agv1.update(dt, agv2, TRAFFIC_CONTROLLER, GLOBAL_STATE["emergency_stop"])
-                agv2.update(dt, agv1, TRAFFIC_CONTROLLER, GLOBAL_STATE["emergency_stop"])
+                # Mise à jour de la physique
+                agv1.update(dt, dummy_agv, TRAFFIC_CONTROLLER, GLOBAL_STATE["emergency_stop"])
             
             # Récupération des données physiques actuelles
             payload1 = agv1.get_telemetry_payload()
-            payload2 = agv2.get_telemetry_payload()
             
-            # Calcul des vitesses finales pour les moteurs
-            agv1_m1 = int(agv1.motor_left_pct * 255)
-            agv1_m2 = int(agv1.motor_right_pct * 255)
-            agv2_m1 = int(agv2.motor_left_pct * 255)
-            agv2_m2 = int(agv2.motor_right_pct * 255)
+            # Calcul des vitesses pour le Dashboard 3D uniquement
+            is_rotating = (agv1.motor_left_pct * agv1.motor_right_pct) < 0
+            pwm_speed = GLOBAL_STATE.get("speed", 50)
+            pwm_limit = 255 if is_rotating else pwm_speed
             
-            # --- DIGITAL TWIN COMMAND: SEND MOTORS TO PHYSICAL ESP32 ---
-            m1_1, m3_1 = agv1_m1, agv1_m1
-            m2_1, m4_1 = agv1_m2, agv1_m2
+            agv1_m1 = int(agv1.motor_left_pct * pwm_limit)
+            agv1_m2 = int(agv1.motor_right_pct * pwm_limit)
             
-            m1_2, m3_2 = agv2_m1, agv2_m1
-            m2_2, m4_2 = agv2_m2, agv2_m2
-            
-            # Si le robot physique prend le contrôle total (manuel ou arrêt d'urgence)
+            # --- DIGITAL TWIN COMMAND: SEND STRING DIRECTION TO PHYSICAL ESP32 ---
             if GLOBAL_STATE["emergency_stop"] or GLOBAL_STATE["paused"]:
-                m1_1, m2_1, m3_1, m4_1 = 0, 0, 0, 0
-                m1_2, m2_2, m3_2, m4_2 = 0, 0, 0, 0
+                cmd_str = "STOP"
+            elif agv1.motor_left_pct > 0 and agv1.motor_right_pct > 0:
+                cmd_str = "FORWARD"
+            elif agv1.motor_left_pct < 0 and agv1.motor_right_pct < 0:
+                cmd_str = "BACKWARD"
+            elif agv1.motor_left_pct < 0 and agv1.motor_right_pct > 0:
+                cmd_str = "LEFT"
+            elif agv1.motor_left_pct > 0 and agv1.motor_right_pct < 0:
+                cmd_str = "RIGHT"
+            else:
+                cmd_str = "STOP"
                 
-            # Envoyer si changement de vitesse OU toutes les secondes (Keep-alive)
+            # Envoyer si changement de commande OU toutes les secondes (Keep-alive)
             current_time = time.time()
-            if not hasattr(telemetry_sender, 'last_sent_motors') or \
-               telemetry_sender.last_sent_motors != (m1_1, m2_1, m3_1, m4_1) or \
-               (current_time - getattr(telemetry_sender, 'last_motor_send_time', 0) > 1.0):
+            if not hasattr(telemetry_sender, 'last_sent_cmd') or \
+               telemetry_sender.last_sent_cmd != cmd_str or \
+               (current_time - getattr(telemetry_sender, 'last_cmd_send_time', 0) > 1.0):
                 
-                telemetry_sender.send_motor_command(telemetry_sender.mqtt_topic_cmd, m1_1, m2_1, m3_1, m4_1)
-                telemetry_sender.last_sent_motors = (m1_1, m2_1, m3_1, m4_1)
-                telemetry_sender.last_motor_send_time = current_time
-
-            # For AGV-02
-            if not hasattr(telemetry_sender, 'last_sent_motors_2') or \
-               telemetry_sender.last_sent_motors_2 != (m1_2, m2_2, m3_2, m4_2) or \
-               (current_time - getattr(telemetry_sender, 'last_motor_send_time_2', 0) > 1.0):
-                
-                telemetry_sender.send_motor_command(telemetry_sender.mqtt_topic_cmd2, m1_2, m2_2, m3_2, m4_2)
-                telemetry_sender.last_sent_motors_2 = (m1_2, m2_2, m3_2, m4_2)
-                telemetry_sender.last_motor_send_time_2 = current_time
+                # Envoyer la commande de mouvement textuelle sur robot/control
+                telemetry_sender.send_string_command(telemetry_sender.mqtt_topic_cmd2, cmd_str)
+                telemetry_sender.last_sent_cmd = cmd_str
+                telemetry_sender.last_cmd_send_time = current_time
             
             # Envoi des données en temps réel au jumeau numérique 3D
             twin_payload = {
                 "timestamp": time.time(),
                 "emergency_stop": GLOBAL_STATE["emergency_stop"],
                 "paused": GLOBAL_STATE["paused"],
-                "agents": [payload1, payload2],
+                "speed": GLOBAL_STATE.get("speed", 150),
+                "agents": [payload1],
                 "motor_speeds": {
                     "m1": agv1_m1,
                     "m2": agv1_m2,
-                    "m3": agv2_m1,
-                    "m4": agv2_m2
+                    "m3": agv1_m1,
+                    "m4": agv1_m2
                 }
             }
             await broadcast(json.dumps(twin_payload))
             
-            # Enregistrement des logs et requêtes webhook toutes les 1,5 secondes (si pas en pause)
+            # Enregistrement des logs toutes les 1,5 secondes (si pas en pause)
             if not GLOBAL_STATE["paused"]:
                 telemetry_timer += dt
                 if telemetry_timer >= 1.5:
                     telemetry_timer = 0.0
                     telemetry_sender.submit_telemetry(payload1)
-                    telemetry_sender.submit_telemetry(payload2)
-                    print(f"[DT Stream] Telemetry Sent | AGV-01: {payload1['state']} (Bat: {payload1['battery_pct']}%) | AGV-02: {payload2['state']} (Bat: {payload2['battery_pct']}%)")
+                    print(f"[DT Stream] Telemetry Sent | AGV-01: {payload1['state']} (Bat: {payload1['battery_pct']}%)")
                 
             await asyncio.sleep(dt)
             

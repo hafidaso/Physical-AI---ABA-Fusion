@@ -106,6 +106,11 @@ class TelemetrySender:
             cmd = f"{m1},{m2},{m3},{m4}"
             self.mqtt_client.publish(topic, cmd)
 
+    def send_string_command(self, topic: str, cmd: str):
+        """Envoie une commande textuelle (FORWARD, LEFT, etc.) au robot ESP32."""
+        if self.mqtt_client is not None and self.mqtt_client.is_connected():
+            self.mqtt_client.publish(topic, cmd)
+
     def submit_telemetry(self, payload: Dict[str, Any]):
         """Ajoute un message de télémétrie à la file d'attente."""
         self.queue.put(payload)

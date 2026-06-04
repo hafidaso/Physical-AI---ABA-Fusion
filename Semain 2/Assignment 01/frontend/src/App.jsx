@@ -12,20 +12,8 @@ const initialAgents = [
     battery_pct: 100,
     mission_id: "M-PENDING-01",
     speed_mps: 0.0,
-    position: { x: 1.5, y: 1.5, zone: "A" },
-    target_zone: "A",
-    distance_front_cm: 300,
-    temperature_c: 25.0,
-    connectivity_status: "OFFLINE"
-  },
-  {
-    agv_id: "AGV-02",
-    state: "OFFLINE",
-    battery_pct: 100,
-    mission_id: "M-PENDING-02",
-    speed_mps: 0.0,
-    position: { x: 6.5, y: 1.5, zone: "B" },
-    target_zone: "B",
+    position: { x: 1.5, y: 6.5, zone: "C" },
+    target_zone: "C",
     distance_front_cm: 300,
     temperature_c: 25.0,
     connectivity_status: "OFFLINE"
@@ -38,6 +26,7 @@ export default function App() {
   const [paused, setPaused] = useState(false);
   const [emergencyStop, setEmergencyStop] = useState(false);
   const [lightMode, setLightMode] = useState(false);
+  const [speed, setSpeed] = useState(50);
   const wsRef = useRef(null);
 
   // Establish WebSocket connection with auto-reconnection
@@ -65,6 +54,9 @@ export default function App() {
           }
           if (payload.emergency_stop !== undefined) {
             setEmergencyStop(payload.emergency_stop);
+          }
+          if (payload.speed !== undefined) {
+            setSpeed(payload.speed);
           }
         } catch (err) {
           console.error("Error parsing telemetry payload:", err);
@@ -398,6 +390,50 @@ export default function App() {
             >
               ABORT MISSIONS
             </button>
+            <button 
+              onClick={() => sendCommand("reset_to_start")}
+              style={{
+                flex: 1,
+                padding: '10px 5px',
+                background: '#4a607a', // Soft blue for C reset
+                color: '#fff',
+                border: '1px solid var(--color-panel-border)',
+                borderRadius: '6px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                transition: 'background 0.2s'
+              }}
+            >
+              RESET TO C
+            </button>
+          </div>
+        </div>
+
+        {/* Speed Control Panel */}
+        <div className="gateways-panel" style={{ marginBottom: '15px' }}>
+          <div className="gateways-title">SPEED CONTROL (PWM)</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <span style={{ fontFamily: 'monospace', width: '40px', fontSize: '14px', color: 'var(--color-text-ivory)', fontWeight: 'bold' }}>
+              {speed}
+            </span>
+            <input 
+              type="range" 
+              min="50" 
+              max="255" 
+              value={speed} 
+              onChange={(e) => {
+                const newSpeed = parseInt(e.target.value);
+                setSpeed(newSpeed);
+                sendCommand("set_speed", { value: newSpeed });
+              }}
+              style={{
+                flex: 1,
+                cursor: 'pointer',
+                accentColor: '#ff7850',
+                height: '6px',
+                borderRadius: '3px'
+              }}
+            />
           </div>
         </div>
 

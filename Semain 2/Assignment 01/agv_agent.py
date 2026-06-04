@@ -30,6 +30,7 @@ class AGV:
         # Les caractéristiques physiques du robot (batterie, vitesse, température...)
         self.battery_pct = 100.0
         self.max_speed_mps = 1.0  # 1.0 m/s = 100 px/s
+        self.rotation_speed_dps = 60.0  # Physical rotation speed in degrees per second (calibrated)
         self.speed_mps = 0.0
         self.total_distance_m = 0.0
         self.temperature_c = 25.0
@@ -312,7 +313,7 @@ class AGV:
         
         if dist > 2.0 and abs(angle_diff) > 2.0:
             # Rotate in place
-            rot_step = 180.0 * dt  # 180 degrees per second
+            rot_step = self.rotation_speed_dps * dt  # based on calibrated physical rotation speed
             if abs(angle_diff) <= rot_step:
                 self.angle_deg = target_angle_deg
             else:
