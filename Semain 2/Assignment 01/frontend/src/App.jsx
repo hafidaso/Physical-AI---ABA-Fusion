@@ -40,7 +40,6 @@ export default function App() {
   // Gyroscope (MPU6050) live data from physical robot via MQTT→WebSocket
   const [gyroYaw, setGyroYaw] = useState(0.0);
   const [gyroOnline, setGyroOnline] = useState(false);
-  const [bypassSensor, setBypassSensor] = useState(false);
   const [physDistance, setPhysDistance] = useState(999.0);
   const wsRef   = useRef(null);
   const mqttRef = useRef(null);   // ← direct MQTT to ESP32 (same as RobotController)
@@ -217,9 +216,17 @@ export default function App() {
   const isAgentInZoneX = (agv) => {
     const x = agv.position?.x || 4.0;
     const y = agv.position?.y || 4.0;
-    return agv.position?.zone === 'X' || (x >= 2.9 && x <= 5.1 && y >= 2.9 && y <= 5.1);
+    return x >= 2.9 && x <= 5.1 && y >= 2.9 && y <= 5.1;
   };
 
+  useEffect(() => {
+    const anyInZoneX = agvs.some(isAgentInZoneX);
+    if (anyInZoneX) {
+      document.body.classList.add('shake-screen');
+    } else {
+      document.body.classList.remove('shake-screen');
+    }
+  }, [agvs]);
   return (
     <>
       {/* Flashing Emergency Stop Alert Border & Banner */}
@@ -493,7 +500,7 @@ export default function App() {
                     {physDistance >= 999 ? '— cm' : `${physDistance.toFixed(0)} cm`}
                   </div>
                   <div style={{ fontSize: '9px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                    {bypassSensor ? '🛡️ BYPASSED' : physDistance <= 20 ? '🚨 TOO CLOSE' : physDistance <= 50 ? '🟡 NEAR' : '🟢 CLEAR'}
+                    {physDistance <= 20 ? '🚨 TOO CLOSE' : physDistance <= 50 ? '🟡 NEAR' : '🟢 CLEAR'}
                   </div>
                 </div>
               </div>
@@ -569,93 +576,6 @@ export default function App() {
             </div>
           );
         })}
-
-        {/* Gyroscope Precision Turn Panel */}
-        <div className="gateways-panel" style={{ marginBottom: '15px' }}>
-          <div className="gateways-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>🔄 GYRO TURNS — MPU6050</span>
-            <span style={{
-              fontSize: '9px', padding: '2px 7px', borderRadius: '10px',
-              background: gyroOnline ? 'rgba(16,185,129,0.15)' : 'rgba(100,100,100,0.15)',
-              color: gyroOnline ? '#10b981' : '#6b7280', fontWeight: 'bold'
-            }}>
-              {gyroOnline ? '● ONLINE' : '○ OFFLINE'}
-            </span>
-          </div>
-          <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginBottom: '8px' }}>
-            Precise rotation via gyroscope — ESP32 auto-stops at target angle
-          </div>
-          <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
-            {/* TURN 90° LEFT */}
-            <button
-              onClick={() => sendCommand('dispatch', { agv_id: 'AGV-01', target: '__turn90L' }) || wsRef.current?.send(JSON.stringify({ command: 'physical_turn', direction: 'TURN_90_L' }))}
-              title="Send TURN_90_L via MQTT → gyroscope rotates exactly 90° left"
-              style={{
-                flex: 1, padding: '10px 4px', fontSize: '12px',
-                background: 'rgba(167,139,250,0.15)', color: '#a78bfa',
-                border: '1px solid rgba(167,139,250,0.35)', borderRadius: '8px',
-                fontWeight: '700', fontFamily: 'Space Grotesk, sans-serif',
-                cursor: 'pointer', transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(167,139,250,0.3)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'rgba(167,139,250,0.15)'}
-            >
-              ↺ 90° L
-            </button>
-            {/* TURN 180° */}
-            <button
-              onClick={() => wsRef.current?.send(JSON.stringify({ command: 'physical_turn', direction: 'TURN_180' }))}
-              title="Send TURN_180 via MQTT → gyroscope rotates exactly 180° (U-turn)"
-              style={{
-                flex: 1.2, padding: '10px 4px', fontSize: '12px',
-                background: 'rgba(167,139,250,0.25)', color: '#c4b5fd',
-                border: '1px solid rgba(167,139,250,0.5)', borderRadius: '8px',
-                fontWeight: '700', fontFamily: 'Space Grotesk, sans-serif',
-                cursor: 'pointer', transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(167,139,250,0.4)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'rgba(167,139,250,0.25)'}
-            >
-              ↻↺ 180°
-            </button>
-            {/* TURN 90° RIGHT */}
-            <button
-              onClick={() => wsRef.current?.send(JSON.stringify({ command: 'physical_turn', direction: 'TURN_90_R' }))}
-              title="Send TURN_90_R via MQTT → gyroscope rotates exactly 90° right"
-              style={{
-                flex: 1, padding: '10px 4px', fontSize: '12px',
-                background: 'rgba(167,139,250,0.15)', color: '#a78bfa',
-                border: '1px solid rgba(167,139,250,0.35)', borderRadius: '8px',
-                fontWeight: '700', fontFamily: 'Space Grotesk, sans-serif',
-                cursor: 'pointer', transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(167,139,250,0.3)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'rgba(167,139,250,0.15)'}
-            >
-              ↻ 90° R
-            </button>
-          </div>
-          {/* Bypass Sensor Toggle */}
-          <button
-            onClick={() => {
-              const newBypass = !bypassSensor;
-              setBypassSensor(newBypass);
-              wsRef.current?.send(JSON.stringify({ command: 'physical_bypass', state: newBypass ? 'ON' : 'OFF' }));
-            }}
-            style={{
-              width: '100%', padding: '8px', fontSize: '11px',
-              background: bypassSensor ? 'rgba(245,158,11,0.25)' : 'rgba(100,100,100,0.1)',
-              color: bypassSensor ? '#f59e0b' : 'var(--color-text-muted)',
-              border: `1px solid ${bypassSensor ? 'rgba(245,158,11,0.5)' : 'var(--color-panel-border)'}`,
-              borderRadius: '8px', fontWeight: '700',
-              fontFamily: 'Space Grotesk, sans-serif',
-              cursor: 'pointer', transition: 'all 0.2s ease',
-              boxShadow: bypassSensor ? '0 0 10px rgba(245,158,11,0.2)' : 'none'
-            }}
-          >
-            🛡️ BYPASS SENSOR: {bypassSensor ? 'ON (Distance disabled)' : 'OFF (Distance active)'}
-          </button>
-        </div>
 
         {/* System Controls Panel */}
         <div className="gateways-panel" style={{ marginBottom: '15px' }}>
@@ -883,9 +803,9 @@ export default function App() {
             <span>{gyroOnline ? `ONLINE — ${gyroYaw >= 0 ? '+' : ''}${gyroYaw.toFixed(1)}°` : 'OFFLINE / Safe Mode'}</span>
           </div>
 
-          <div className={`gateway-line ${bypassSensor ? 'pending' : 'ok'}`}>
+          <div className="gateway-line ok">
             <span>Distance Sensor:</span>
-            <span>{bypassSensor ? 'BYPASSED 🛡️' : physDistance >= 999 ? 'CLEAR' : `${physDistance.toFixed(0)} cm`}</span>
+            <span>{physDistance >= 999 ? 'CLEAR' : `${physDistance.toFixed(0)} cm`}</span>
           </div>
           
           <div className="gateway-line" style={{ color: '#7887a5', marginTop: '6px', fontSize: '10px' }}>
