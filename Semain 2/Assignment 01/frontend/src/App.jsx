@@ -2,7 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import Warehouse3D from './Warehouse3D';
+import RobotController from './RobotController';
+import mqtt from 'mqtt';
 import './index.css';
+
+// ─ MQTT direct-to-robot config (same as RobotController & Python script) ─────
+const MQTT_BROKER_URL = "wss://ac6ac8bb96e444b3b796a80e83455529.s1.eu.hivemq.cloud:8884/mqtt";
+const MQTT_USER       = "hivemq.webclient.1775653497883";
+const MQTT_PASS       = "1B%.CwaP:Kdr2I93k*Ap";
+const MQTT_CMD_TOPIC  = "robot/control";
 
 // Default starter states in case backend is offline
 const initialAgents = [
@@ -29,7 +37,13 @@ export default function App() {
   const [speed, setSpeed] = useState(50);
   const [fpvMode, setFpvMode] = useState(false);
   const [blockedEdges, setBlockedEdges] = useState([]);
-  const wsRef = useRef(null);
+  // Gyroscope (MPU6050) live data from physical robot via MQTT→WebSocket
+  const [gyroYaw, setGyroYaw] = useState(0.0);
+  const [gyroOnline, setGyroOnline] = useState(false);
+  const [bypassSensor, setBypassSensor] = useState(false);
+  const [physDistance, setPhysDistance] = useState(999.0);
+  const wsRef   = useRef(null);
+  const mqttRef = useRef(null);   // ← direct MQTT to ESP32 (same as RobotController)
   // Speech queue: ensures only one audio plays at a time
   const audioQueueRef = useRef([]);
   const currentAudioRef = useRef(null);
@@ -114,6 +128,14 @@ export default function App() {
           if (payload.blocked_edges !== undefined) {
             setBlockedEdges(payload.blocked_edges);
           }
+          // Physical robot gyroscope + sensor data forwarded via twin telemetry
+          if (payload.gyro_yaw !== undefined) {
+            setGyroYaw(payload.gyro_yaw);
+            setGyroOnline(true);
+          }
+          if (payload.phys_distance !== undefined) {
+            setPhysDistance(payload.phys_distance);
+          }
         } catch (err) {
           console.error("Error parsing telemetry payload:", err);
         }
@@ -148,9 +170,15 @@ export default function App() {
   const sendCommand = (cmd, payload = {}) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ command: cmd, ...payload }));
-      console.log(`📤 Dispatched command over WS: ${cmd}`, payload);
+      console.log(`📤 WS command: ${cmd}`, payload);
     }
   };
+
+  // ── MQTT shortcuts for physical robot (called alongside WS commands) ─────────
+  // These ensure the physical car responds even if the backend is offline.
+  const mqttStop  = () => mqttPub("STOP");
+  const mqttSpeed = (v) => mqttPub(`SPEED:${v}`);
+
 
 
 
@@ -167,7 +195,25 @@ export default function App() {
     });
   };
 
-  // Check if an AGV is in Zone X (for dashboard alert styling)
+  // ── MQTT direct connection to physical robot ───────────────────────────
+  useEffect(() => {
+    const client = mqtt.connect(MQTT_BROKER_URL, {
+      username: MQTT_USER, password: MQTT_PASS,
+      clientId: `app-ctrl-${Math.random().toString(16).slice(2)}`,
+      clean: true, reconnectPeriod: 4000,
+    });
+    mqttRef.current = client;
+    client.on('connect', () => console.log('[MQTT] App connected to HiveMQ (system controls)'));
+    client.on('error',   (e) => console.warn('[MQTT] App error:', e.message));
+    return () => client.end();
+  }, []);
+
+  // Helper: publish a raw MQTT command to the physical robot
+  const mqttPub = (cmd) => {
+    mqttRef.current?.publish(MQTT_CMD_TOPIC, cmd);
+  };
+
+
   const isAgentInZoneX = (agv) => {
     const x = agv.position?.x || 4.0;
     const y = agv.position?.y || 4.0;
@@ -308,6 +354,9 @@ export default function App() {
         </div>
         <p className="hud-developer" style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '-10px', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 'bold' }}>Developed by: Hafida Belayd & Abdelkhalek Hanbel</p>
 
+        {/* ── Physical Robot Controller (MQTT direct to ESP32) ── */}
+        <RobotController />
+
         {agvs.map((agv) => {
           const inZoneX = isAgentInZoneX(agv);
           const speedPct = Math.min(100, (agv.speed_mps / 1.0) * 100);
@@ -387,6 +436,68 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Row 3b: Gyroscope Yaw Angle (MPU6050) */}
+              <div className="metrics-row" style={{ marginTop: '4px' }}>
+                <div className="metric-item">
+                  <div className="metric-label" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <span>Gyro Yaw</span>
+                    <span style={{
+                      fontSize: '9px',
+                      padding: '1px 5px',
+                      borderRadius: '4px',
+                      background: gyroOnline ? 'rgba(16,185,129,0.2)' : 'rgba(100,100,100,0.2)',
+                      color: gyroOnline ? '#10b981' : '#6b7280',
+                      fontWeight: 'bold'
+                    }}>
+                      {gyroOnline ? 'MPU6050 ●' : 'NO GYRO'}
+                    </span>
+                  </div>
+                  <div className="metric-value-mono" style={{
+                    color: gyroOnline ? '#a78bfa' : 'var(--color-text-muted)',
+                    fontSize: '18px'
+                  }}>
+                    {gyroOnline ? `${gyroYaw >= 0 ? '+' : ''}${gyroYaw.toFixed(1)}°` : '— °'}
+                  </div>
+                  {/* Compass visual */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
+                    <div style={{
+                      width: '28px', height: '28px', borderRadius: '50%',
+                      border: '1px solid rgba(167,139,250,0.3)',
+                      position: 'relative', flexShrink: 0
+                    }}>
+                      <div style={{
+                        position: 'absolute', top: '50%', left: '50%',
+                        width: '2px', height: '11px',
+                        background: gyroOnline ? '#a78bfa' : '#374151',
+                        transformOrigin: 'bottom center',
+                        transform: `translate(-50%, -100%) rotate(${gyroYaw}deg)`,
+                        transition: 'transform 0.3s ease',
+                        borderRadius: '2px'
+                      }} />
+                    </div>
+                    <div className="progress-bar-bg" style={{ flex: 1 }}>
+                      <div className="progress-bar-fill" style={{
+                        width: `${Math.min(100, Math.abs(gyroYaw) / 1.8)}%`,
+                        backgroundColor: '#a78bfa',
+                        transition: 'width 0.3s ease'
+                      }} />
+                    </div>
+                  </div>
+                </div>
+                <div className="metric-item right">
+                  <div className="metric-label">Phys. Distance</div>
+                  <div className="metric-value-mono" style={{
+                    color: physDistance <= 20 ? 'var(--color-terracotta)' :
+                           physDistance <= 50 ? 'var(--state-wait)' : 'var(--color-text-ivory)'
+                  }}>
+                    {physDistance >= 999 ? '— cm' : `${physDistance.toFixed(0)} cm`}
+                  </div>
+                  <div style={{ fontSize: '9px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                    {bypassSensor ? '🛡️ BYPASSED' : physDistance <= 20 ? '🚨 TOO CLOSE' : physDistance <= 50 ? '🟡 NEAR' : '🟢 CLEAR'}
+                  </div>
+                </div>
+              </div>
+
               {/* Row 3: Critical Zone Alert Banner */}
               {inZoneX && (
                 <div className="zone-x-warning">
@@ -459,13 +570,101 @@ export default function App() {
           );
         })}
 
+        {/* Gyroscope Precision Turn Panel */}
+        <div className="gateways-panel" style={{ marginBottom: '15px' }}>
+          <div className="gateways-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>🔄 GYRO TURNS — MPU6050</span>
+            <span style={{
+              fontSize: '9px', padding: '2px 7px', borderRadius: '10px',
+              background: gyroOnline ? 'rgba(16,185,129,0.15)' : 'rgba(100,100,100,0.15)',
+              color: gyroOnline ? '#10b981' : '#6b7280', fontWeight: 'bold'
+            }}>
+              {gyroOnline ? '● ONLINE' : '○ OFFLINE'}
+            </span>
+          </div>
+          <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginBottom: '8px' }}>
+            Precise rotation via gyroscope — ESP32 auto-stops at target angle
+          </div>
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+            {/* TURN 90° LEFT */}
+            <button
+              onClick={() => sendCommand('dispatch', { agv_id: 'AGV-01', target: '__turn90L' }) || wsRef.current?.send(JSON.stringify({ command: 'physical_turn', direction: 'TURN_90_L' }))}
+              title="Send TURN_90_L via MQTT → gyroscope rotates exactly 90° left"
+              style={{
+                flex: 1, padding: '10px 4px', fontSize: '12px',
+                background: 'rgba(167,139,250,0.15)', color: '#a78bfa',
+                border: '1px solid rgba(167,139,250,0.35)', borderRadius: '8px',
+                fontWeight: '700', fontFamily: 'Space Grotesk, sans-serif',
+                cursor: 'pointer', transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(167,139,250,0.3)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(167,139,250,0.15)'}
+            >
+              ↺ 90° L
+            </button>
+            {/* TURN 180° */}
+            <button
+              onClick={() => wsRef.current?.send(JSON.stringify({ command: 'physical_turn', direction: 'TURN_180' }))}
+              title="Send TURN_180 via MQTT → gyroscope rotates exactly 180° (U-turn)"
+              style={{
+                flex: 1.2, padding: '10px 4px', fontSize: '12px',
+                background: 'rgba(167,139,250,0.25)', color: '#c4b5fd',
+                border: '1px solid rgba(167,139,250,0.5)', borderRadius: '8px',
+                fontWeight: '700', fontFamily: 'Space Grotesk, sans-serif',
+                cursor: 'pointer', transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(167,139,250,0.4)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(167,139,250,0.25)'}
+            >
+              ↻↺ 180°
+            </button>
+            {/* TURN 90° RIGHT */}
+            <button
+              onClick={() => wsRef.current?.send(JSON.stringify({ command: 'physical_turn', direction: 'TURN_90_R' }))}
+              title="Send TURN_90_R via MQTT → gyroscope rotates exactly 90° right"
+              style={{
+                flex: 1, padding: '10px 4px', fontSize: '12px',
+                background: 'rgba(167,139,250,0.15)', color: '#a78bfa',
+                border: '1px solid rgba(167,139,250,0.35)', borderRadius: '8px',
+                fontWeight: '700', fontFamily: 'Space Grotesk, sans-serif',
+                cursor: 'pointer', transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(167,139,250,0.3)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(167,139,250,0.15)'}
+            >
+              ↻ 90° R
+            </button>
+          </div>
+          {/* Bypass Sensor Toggle */}
+          <button
+            onClick={() => {
+              const newBypass = !bypassSensor;
+              setBypassSensor(newBypass);
+              wsRef.current?.send(JSON.stringify({ command: 'physical_bypass', state: newBypass ? 'ON' : 'OFF' }));
+            }}
+            style={{
+              width: '100%', padding: '8px', fontSize: '11px',
+              background: bypassSensor ? 'rgba(245,158,11,0.25)' : 'rgba(100,100,100,0.1)',
+              color: bypassSensor ? '#f59e0b' : 'var(--color-text-muted)',
+              border: `1px solid ${bypassSensor ? 'rgba(245,158,11,0.5)' : 'var(--color-panel-border)'}`,
+              borderRadius: '8px', fontWeight: '700',
+              fontFamily: 'Space Grotesk, sans-serif',
+              cursor: 'pointer', transition: 'all 0.2s ease',
+              boxShadow: bypassSensor ? '0 0 10px rgba(245,158,11,0.2)' : 'none'
+            }}
+          >
+            🛡️ BYPASS SENSOR: {bypassSensor ? 'ON (Distance disabled)' : 'OFF (Distance active)'}
+          </button>
+        </div>
+
         {/* System Controls Panel */}
         <div className="gateways-panel" style={{ marginBottom: '15px' }}>
           <div className="gateways-title">SYSTEM CONTROLS</div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button 
               onClick={() => {
-                sendCommand("pause");
+                sendCommand("pause");          // WS → backend simulator
+                mqttStop();                    // MQTT → physical robot STOP immediately
               }}
               style={{
                 flex: 1,
@@ -491,7 +690,8 @@ export default function App() {
             </button>
             <button 
               onClick={() => {
-                sendCommand("estop");
+                sendCommand("estop");          // WS → backend
+                mqttStop();                   // MQTT → physical robot hard STOP
               }}
               style={{
                 flex: 1.2,
@@ -516,7 +716,10 @@ export default function App() {
               {emergencyStop ? "RESUME FLEET" : "STOP FLEET (E-STOP)"}
             </button>
             <button 
-              onClick={() => sendCommand("reset", { agv_id: "ALL" })}
+              onClick={() => {
+                sendCommand("reset", { agv_id: "ALL" });   // WS → backend
+                mqttStop();                                  // MQTT → physical robot STOP
+              }}
               style={{
                 flex: 1.1,
                 padding: '10px 5px',
@@ -539,7 +742,10 @@ export default function App() {
               ABORT
             </button>
             <button 
-              onClick={() => sendCommand("reset_to_start")}
+              onClick={() => {
+                sendCommand("reset_to_start");   // WS → backend
+                mqttStop();                       // MQTT → physical robot STOP
+              }}
               style={{
                 flex: 1.1,
                 padding: '10px 5px',
@@ -644,7 +850,8 @@ export default function App() {
               onChange={(e) => {
                 const newSpeed = parseInt(e.target.value);
                 setSpeed(newSpeed);
-                sendCommand("set_speed", { value: newSpeed });
+                sendCommand("set_speed", { value: newSpeed });   // WS → backend
+                mqttSpeed(newSpeed);                              // MQTT → physical robot
               }}
               style={{
                 flex: 1,
@@ -669,6 +876,16 @@ export default function App() {
           <div className="gateway-line ok">
             <span>NDJSON Logger:</span>
             <span>ACTIVE</span>
+          </div>
+
+          <div className={`gateway-line ${gyroOnline ? 'ok' : 'err'}`}>
+            <span>MPU6050 Gyroscope:</span>
+            <span>{gyroOnline ? `ONLINE — ${gyroYaw >= 0 ? '+' : ''}${gyroYaw.toFixed(1)}°` : 'OFFLINE / Safe Mode'}</span>
+          </div>
+
+          <div className={`gateway-line ${bypassSensor ? 'pending' : 'ok'}`}>
+            <span>Distance Sensor:</span>
+            <span>{bypassSensor ? 'BYPASSED 🛡️' : physDistance >= 999 ? 'CLEAR' : `${physDistance.toFixed(0)} cm`}</span>
           </div>
           
           <div className="gateway-line" style={{ color: '#7887a5', marginTop: '6px', fontSize: '10px' }}>

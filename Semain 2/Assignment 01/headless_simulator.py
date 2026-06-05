@@ -182,6 +182,20 @@ async def register(websocket):
                             GLOBAL_STATE["blocked_edges"].add((u, v))
                             GLOBAL_STATE["blocked_edges"].add((v, u))
                             print(f"🛑 Blocked edge {u}-{v}")
+                # ── NEW: Physical robot gyro turns sent via MQTT ──────────────
+                elif command == "physical_turn":
+                    direction = data.get("direction", "")
+                    if direction in ("TURN_90_L", "TURN_90_R", "TURN_180") and TELEMETRY_SENDER_REF is not None:
+                        TELEMETRY_SENDER_REF.send_string_command(TELEMETRY_SENDER_REF.mqtt_topic_cmd2, direction)
+                        turn_ar = {"TURN_90_L": "90 درجة لليسار", "TURN_90_R": "90 درجة لليمين", "TURN_180": "180 درجة"}[direction]
+                        print(f"🔄 Gyro Turn sent to physical robot: {direction}")
+                        asyncio.create_task(announce(format_tts(f"العربة كتدور {turn_ar} بالجيروسكوب.")))
+                # ── NEW: Bypass distance sensor (anti-noise for motors) ────────
+                elif command == "physical_bypass":
+                    state = data.get("state", "OFF")
+                    if TELEMETRY_SENDER_REF is not None:
+                        TELEMETRY_SENDER_REF.send_string_command(TELEMETRY_SENDER_REF.mqtt_topic_cmd2, f"BYPASS:{state}")
+                        print(f"🛡️ Bypass sensor {'activated' if state == 'ON' else 'deactivated'} via Dashboard")
             except Exception as e:
                 print(f"Error handling WS command: {e}")
     except websockets.exceptions.ConnectionClosed:
@@ -316,6 +330,22 @@ async def simulation_loop():
             # Récupération des données physiques actuelles
             payload1 = agv1.get_telemetry_payload()
             
+            # Forward gyro + distance data from physical twin to frontend
+            twin_data_for_gyro = telemetry_sender.get_physical_twin_data("hafida-smart-robot-safety-2")
+            gyro_yaw_val = None
+            phys_dist_val = None
+            if twin_data_for_gyro:
+                if "yaw" in twin_data_for_gyro:
+                    try:
+                        gyro_yaw_val = float(twin_data_for_gyro["yaw"])
+                    except (ValueError, TypeError):
+                        pass
+                if "distance" in twin_data_for_gyro:
+                    try:
+                        phys_dist_val = float(twin_data_for_gyro["distance"])
+                    except (ValueError, TypeError):
+                        pass
+            
             # Calcul des vitesses pour le Dashboard 3D uniquement
             is_rotating = (agv1.motor_left_pct * agv1.motor_right_pct) < 0
             pwm_speed = GLOBAL_STATE.get("speed", 50)
@@ -325,12 +355,13 @@ async def simulation_loop():
             agv1_m2 = int(agv1.motor_right_pct * pwm_limit)
             
             # --- DIGITAL TWIN COMMAND: SEND STRING DIRECTION TO PHYSICAL ESP32 ---
+            # NOTE: Physical wiring is inverted. To go forward, we send "BACKWARD".
             if GLOBAL_STATE["emergency_stop"] or GLOBAL_STATE["paused"]:
                 cmd_str = "STOP"
             elif agv1.motor_left_pct > 0 and agv1.motor_right_pct > 0:
-                cmd_str = "FORWARD"
+                cmd_str = "BACKWARD"   # Physical Forward
             elif agv1.motor_left_pct < 0 and agv1.motor_right_pct < 0:
-                cmd_str = "BACKWARD"
+                cmd_str = "FORWARD"    # Physical Backward
             elif agv1.motor_left_pct < 0 and agv1.motor_right_pct > 0:
                 cmd_str = "LEFT"
             elif agv1.motor_left_pct > 0 and agv1.motor_right_pct < 0:
@@ -364,6 +395,11 @@ async def simulation_loop():
                     "m4": agv1_m2
                 }
             }
+            # Inject physical robot gyro + distance data if available from MQTT twin
+            if gyro_yaw_val is not None:
+                twin_payload["gyro_yaw"] = gyro_yaw_val
+            if phys_dist_val is not None:
+                twin_payload["phys_distance"] = phys_dist_val
             await broadcast(json.dumps(twin_payload))
             
             # Enregistrement des logs toutes les 1,5 secondes (si pas en pause)

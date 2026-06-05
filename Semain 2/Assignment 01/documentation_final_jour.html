@@ -370,6 +370,10 @@
         <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
     </div>
 
+    <div style="text-align: center; margin: 30px 0;">
+        <img src="pictures/693521ef-3d23-498a-a5bb-4f3eb32c6cbb.png" alt="Project Overview Image" style="max-width: 100%; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.15);" />
+    </div>
+
     <h1>1. Executive Summary</h1>
     <p>
         Modern warehouse automation relies extensively on Automated Guided Vehicles (AGVs) to coordinate logistics. Managing a physical fleet of AGVs presents challenges, particularly around system visibility, network latency, and collision prevention. This project resolves these issues by implementing a cyber-physical digital twin architecture. 
@@ -412,11 +416,14 @@
 
     <h1>3. Embedded Edge Layer (ESP32 Firmware)</h1>
     <p>
-        The physical vehicle is governed by an ESP32 edge microcontroller executing a non-blocking scheduling loop. The firmware maintains strict timing for telemetry updates, LCD refreshes, and distance scans to maximize responsiveness.
+        The physical vehicle is governed by an ESP32 edge microcontroller executing a non-blocking scheduling loop. The firmware maintains strict timing for telemetry updates, LCD refreshes, ultrasonic distance scans, and MPU6050 gyroscope tracking to maximize responsiveness.
     </p>
-    <h2>3.1. Non-Blocking Design and LCD Layout</h2>
+    <h2>3.1. Non-Blocking Design, MPU6050 Gyroscope, and LCD Layout</h2>
     <p>
-        Unlike legacy looping structures that rely on <code>delay()</code>, our firmware uses <code>millis()</code> timer comparison thresholds. This ensures the MQTT callback and loop processing run at full speed. An I2C LCD screen (1602) displays live operational metrics.
+        Unlike legacy looping structures that rely on <code>delay()</code>, our firmware uses <code>millis()</code> timer comparison thresholds. This ensures the MQTT callback and loop processing run at full speed.
+    </p>
+    <p>
+        We integrated an <strong>MPU6050 6-Axis Gyroscope</strong> to track the vehicle's precise Z-axis (Yaw) rotation in real-time. This provides highly accurate heading data via the <code>"robot/angle"</code> MQTT topic, which is used to execute perfect one-shot turns (e.g., 90° or 180°) without relying on blind, inaccurate time delays. The local I2C LCD screen (1602) simultaneously displays these live operational metrics.
     </p>
     <p>
         To elevate visual feedback, we registered custom character binary matrices directly to the LCD memory during `setup()` to render icons:
@@ -470,6 +477,11 @@
     <h2>5.1. Darija TTS Technical Flow</h2>
     <p>
         When any fleet event occurs (E-Stop, dispatch, obstacle, Zone X entry, etc.), the Python backend calls the <code>announce(text)</code> coroutine. This function invokes <code>generate_darija_speech(text)</code>, which uses the <code>edge_tts.Communicate</code> API to synthesize an MP3 file using the <code>ar-MA-MounaNeural</code> Microsoft voice. The audio bytes are Base64-encoded and broadcast to all connected WebSocket clients as a special <code>{"type": "speech", "audio": "..."}</code> payload. The React frontend detects this payload type in its <code>ws.onmessage</code> handler and plays it using <code>new Audio("data:audio/mp3;base64," + payload.audio).play()</code>.
+    </p>
+
+    <h2>5.2. Autonomous "Square Runner" Mission</h2>
+    <p>
+        The 3D Dashboard features a dedicated <strong>"Auto Mission"</strong> system capable of autonomous sequence execution. We implemented a <strong>"Square Runner"</strong> sequence that drives the vehicle in a perfect square by looping four times through a configurable forward driving period and a rotation period. The progress of these maneuvers is dynamically visualized in the HUD via animated progress bars and countdown timers synchronized with the physical robot's movements.
     </p>
 
     <div class="callout">
@@ -572,7 +584,48 @@
         </p>
     </div>
 
-    <h1>8. Conclusion</h1>
+    <h1>8. System Interface & Visual Analysis</h1>
+    <p>
+        The following snapshots demonstrate the various operational states of the 3D Digital Twin and Fleet Monitor interface during real-time testing.
+    </p>
+
+    <div class="gallery-container" style="display: flex; flex-direction: column; gap: 40px; margin: 30px 0;">
+        
+        <div class="gallery-item" style="border: 1px solid var(--border); border-radius: 12px; padding: 20px; background-color: var(--bg-light);">
+            <h3 style="margin-top: 0; color: var(--primary);">1. Square Runner Autonomous Mission</h3>
+            <img src="pictures/Screenshot 2026-06-05 at 17.08.45.jpg" alt="Square Runner Mission" style="width: 100%; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <p style="margin-top: 15px; font-size: 0.9em; color: var(--text-dark); line-height: 1.6;">
+                <strong>Analysis:</strong> This view highlights the "Auto Mission: Square Runner" execution pane. The interface shows a successfully completed autonomous square pattern with dynamic countdown timers synchronized for both Forward movement and 90° Gyroscope turns. The system correctly tracks time intervals mapped to real-world physics.
+            </p>
+        </div>
+
+        <div class="gallery-item" style="border: 1px solid var(--border); border-radius: 12px; padding: 20px; background-color: var(--bg-light);">
+            <h3 style="margin-top: 0; color: var(--primary);">2. Telemetry and Manual Dispatch</h3>
+            <img src="pictures/Screenshot 2026-06-05 at 17.31.54.jpg" alt="Telemetry and Dashboard" style="width: 100%; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <p style="margin-top: 15px; font-size: 0.9em; color: var(--text-dark); line-height: 1.6;">
+                <strong>Analysis:</strong> The main Fleet Monitor layout displaying active telemetry. The sidebar tracks Live Battery (61%), Distance Sensor values, and precise Gyro Yaw angles. The 3D view shows the vehicle positioned at Zone C with realistic dynamic lighting and shadows.
+            </p>
+        </div>
+
+        <div class="gallery-item" style="border: 1px solid var(--border); border-radius: 12px; padding: 20px; background-color: var(--bg-light);">
+            <h3 style="margin-top: 0; color: var(--primary);">3. Dynamic Obstacle Detection & Rerouting</h3>
+            <img src="pictures/Screenshot 2026-06-05 at 17.32.04.jpg" alt="Obstacle Rerouting" style="width: 100%; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <p style="margin-top: 15px; font-size: 0.9em; color: var(--text-dark); line-height: 1.6;">
+                <strong>Analysis:</strong> Shows the system's reaction to an obstacle. The route between Zone C and Zone X is dynamically marked in red (blocked), and the system highlights the active hazard using visual alerts on the 3D grid, ready to recalculate an alternate path using Dijkstra's algorithm.
+            </p>
+        </div>
+
+        <div class="gallery-item" style="border: 1px solid var(--border); border-radius: 12px; padding: 20px; background-color: var(--bg-light);">
+            <h3 style="margin-top: 0; color: var(--primary);">4. FPV Camera System</h3>
+            <img src="pictures/Screenshot 2026-06-05 at 17.31.42.jpg" alt="FPV Camera" style="width: 100%; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <p style="margin-top: 15px; font-size: 0.9em; color: var(--text-dark); line-height: 1.6;">
+                <strong>Analysis:</strong> First-Person View (FPV) Camera mode activated. The camera tightly follows the AGV from behind, showing the rotating LIDAR cone and emissive LED lights from an operator's perspective on the ground.
+            </p>
+        </div>
+
+    </div>
+
+    <h1>9. Conclusion</h1>
     <p>
         By integrating edge hardware safety overrides with an interactive 3D virtual twin and a native Moroccan Arabic (Darija) Neural TTS voice system, this project delivers a highly secure, traceable, and accessible AGV fleet coordination platform. The low-latency MQTT/WebSocket synchronization, real-time visual warnings, and spoken Darija announcements powered by the <code>ar-MA-MounaNeural</code> Microsoft Edge TTS voice ensure safe and linguistically inclusive industrial automation for Moroccan operator environments.
     </p>
