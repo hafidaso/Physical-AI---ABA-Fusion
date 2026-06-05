@@ -39,23 +39,20 @@ def format_tts(text: str) -> str:
     """
     phonetic_map = {
         # AGV variants
-        "آ جي في واحد":  "AGV 1",
-        "اجي في واحد":   "AGV 1",
         "agv1":              "AGV 1",
         "AGV-01":            "AGV 1",
         # Zone labels
-        "إكس":              "X",
-        "إكس.": "X.",
+        "X.": "X.",
         # Algorithm
-        "ديكسترا":         "Dijkstra",
+        "Dijkstra":         "Dijkstra",
     }
     for word, replacement in phonetic_map.items():
         text = text.replace(word, replacement)
     return text
 
-async def generate_darija_speech(text: str) -> str:
-    """Génère un TTS en darija marocain en utilisant Microsoft Edge TTS et retourne les données MP3 en base64."""
-    voice = "ar-MA-MounaNeural"  # Moroccan Arabic (Darija) neural voice
+async def generate_english_speech(text: str) -> str:
+    """Génère un TTS en anglais en utilisant Microsoft Edge TTS et retourne les données MP3 en base64."""
+    voice = "en-US-JennyNeural"  # Highly interactive, natural, and conversational English voice
     communicate = edge_tts.Communicate(text, voice)
     
     with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
@@ -71,13 +68,13 @@ async def generate_darija_speech(text: str) -> str:
             os.remove(temp_name)
 
 async def announce(text: str, interrupt: bool = False):
-    """Gènère l'audio en darija marocain et le diffuse à tous les clients WebSocket connectés.
+    """Gènère l'audio en anglais et le diffuse à tous les clients WebSocket connectés.
     interrupt=True: stoppe l'audio en cours et vide la file sur le client (urgent).
     interrupt=False: file d'attente normale (pas de chevauchement).
     """
     try:
-        print(f"🔊 Generating Darija Speech: {text}")
-        audio_b64 = await generate_darija_speech(text)
+        print(f"🔊 Generating English Speech: {text}")
+        audio_b64 = await generate_english_speech(text)
         payload = {
             "type": "speech",
             "text": text,
@@ -101,16 +98,16 @@ async def register(websocket):
                     GLOBAL_STATE["emergency_stop"] = not GLOBAL_STATE["emergency_stop"]
                     print(f"⚠️ Emergency Stop toggled via WS: {GLOBAL_STATE['emergency_stop']}")
                     if GLOBAL_STATE["emergency_stop"]:
-                        asyncio.create_task(announce(format_tts("توقيف الطوارئ تخدم، الأسطول كامل وقف."), interrupt=True))
+                        asyncio.create_task(announce(format_tts("Emergency stop engaged. Entire fleet has been halted."), interrupt=True))
                     else:
-                        asyncio.create_task(announce(format_tts("حيد توقف الطوارئ، الأسطول رجع يخدم."), interrupt=True))
+                        asyncio.create_task(announce(format_tts("Emergency stop disengaged. Fleet operations resumed."), interrupt=True))
                 elif command == "pause":
                     GLOBAL_STATE["paused"] = not GLOBAL_STATE["paused"]
                     print(f"⏸️ Pause toggled via WS: {GLOBAL_STATE['paused']}")
                     if GLOBAL_STATE["paused"]:
-                        asyncio.create_task(announce(format_tts("الأسطول متوقف دابا."), interrupt=True))
+                        asyncio.create_task(announce(format_tts("Fleet operations are currently paused."), interrupt=True))
                     else:
-                        asyncio.create_task(announce(format_tts("الأسطول رجع يخدم دابا."), interrupt=True))
+                        asyncio.create_task(announce(format_tts("Fleet operations have resumed."), interrupt=True))
                 elif command == "set_speed":
                     speed_val = int(data.get("value", 150))
                     GLOBAL_STATE["speed"] = speed_val
@@ -125,8 +122,8 @@ async def register(websocket):
                         if not GLOBAL_STATE["emergency_stop"] and not GLOBAL_STATE["paused"]:
                             agv_instance.start_mission(target)
                             print(f"✈️ Manual dispatch via WS: {agv_id} -> {target}")
-                            target_ar = {"A": "آ", "B": "بي", "C": "سي", "D": "دي", "R": "شحن البطارية"}.get(target, target)
-                            asyncio.create_task(announce(format_tts(f"العربة AGV 1 غادة دابا لمنطقة {target_ar}.")))  
+                            target_en = {"A": "A", "B": "B", "C": "C", "D": "D", "R": "Battery Charging"}.get(target, target)
+                            asyncio.create_task(announce(format_tts(f"AGV 1 is now en route to zone {target_en}.")))  
                 elif command == "reset":
                     agv_id = data.get("agv_id")
                     if agv_id in AGV_FLEET:
@@ -152,9 +149,9 @@ async def register(websocket):
                         # Forcer l'état de pause de la simulation
                         GLOBAL_STATE["paused"] = True
                         print(f"🔄 Reset to START_ZONE ({START_ZONE}) and paused via WS")
-                        asyncio.create_task(announce(format_tts("تمت إعادة تعيين أسطول العربات إلى نقطة البداية C."), interrupt=True))
+                        asyncio.create_task(announce(format_tts("Fleet has been reset to starting point C."), interrupt=True))
                 elif command == "test_voice":
-                    asyncio.create_task(announce(format_tts("فحص الصوت خدام مزيان، النظام دابا أونلاين."), interrupt=True))
+                    asyncio.create_task(announce(format_tts("Audio systems check successful. System is now online."), interrupt=True))
                 elif command == "simulate_obstacle":
                     if "AGV-01" in AGV_FLEET:
                         agv_instance = AGV_FLEET["AGV-01"]
@@ -169,7 +166,7 @@ async def register(websocket):
                     if "AGV-01" in AGV_FLEET:
                         AGV_FLEET["AGV-01"].blocked_edges.clear()
                     print("🧹 Cleared all blocked lanes.")
-                    asyncio.create_task(announce(format_tts("تمت إزالة الحواجز والعوائق، الطريق دابا مسرحة."), interrupt=True))
+                    asyncio.create_task(announce(format_tts("All obstacles have been cleared. Route is now unobstructed."), interrupt=True))
                 elif command == "toggle_blocked_edge":
                     edge = data.get("edge")
                     if edge and len(edge) == 2:
@@ -187,9 +184,9 @@ async def register(websocket):
                     direction = data.get("direction", "")
                     if direction in ("TURN_90_L", "TURN_90_R", "TURN_180") and TELEMETRY_SENDER_REF is not None:
                         TELEMETRY_SENDER_REF.send_string_command(TELEMETRY_SENDER_REF.mqtt_topic_cmd2, direction)
-                        turn_ar = {"TURN_90_L": "90 درجة لليسار", "TURN_90_R": "90 درجة لليمين", "TURN_180": "180 درجة"}[direction]
+                        turn_en = {"TURN_90_L": "90 degrees left", "TURN_90_R": "90 degrees right", "TURN_180": "180 degrees"}[direction]
                         print(f"🔄 Gyro Turn sent to physical robot: {direction}")
-                        asyncio.create_task(announce(format_tts(f"العربة كتدور {turn_ar} بالجيروسكوب.")))
+                        asyncio.create_task(announce(format_tts(f"Vehicle executing a {turn_en} gyroscopic turn.")))
                 # ── NEW: Bypass distance sensor (anti-noise for motors) ────────
                 elif command == "physical_bypass":
                     state = data.get("state", "OFF")
@@ -279,7 +276,7 @@ async def simulation_loop():
                                 GLOBAL_STATE["blocked_edges"].add((p_node, c_node))
                                 GLOBAL_STATE["blocked_edges"].add((c_node, p_node))
                                 print(f"⚠️ Physical AGV detected obstacle! Blocked segment {p_node}-{c_node}")
-                                asyncio.create_task(announce(format_tts("حضي راسك، كاين عائق قدام العربة. جاري إعادة حساب مسار جديد.")))
+                                asyncio.create_task(announce(format_tts("Caution, obstacle detected ahead. Recalculating new route.")))
                                 _obstacle_announced = True  # flag: don't repeat in blocked_count watcher
 
             # 1. Mise à jour de la physique si la simulation n'est pas en pause
@@ -296,19 +293,19 @@ async def simulation_loop():
                     if agv1.current_zone == "C":
                         print("🏁 Starting leg: C -> A")
                         agv1.start_mission("A")
-                        asyncio.create_task(announce(format_tts("العربة AGV 1 غادة دابا لمنطقة A.")))
+                        asyncio.create_task(announce(format_tts("AGV 1 is now en route to zone A.")))
                     elif agv1.current_zone == "A":
                         print("🏁 Starting leg: A -> B")
                         agv1.start_mission("B")
-                        asyncio.create_task(announce(format_tts("العربة AGV 1 غادة دابا لمنطقة B.")))
+                        asyncio.create_task(announce(format_tts("AGV 1 is now en route to zone B.")))
                     elif agv1.current_zone == "B":
                         print("🏁 Starting leg: B -> D")
                         agv1.start_mission("D")
-                        asyncio.create_task(announce(format_tts("العربة AGV 1 غادة دابا لمنطقة D.")))
+                        asyncio.create_task(announce(format_tts("AGV 1 is now en route to zone D.")))
                     elif agv1.current_zone == "D":
                         print("🏁 Starting leg: D -> C")
                         agv1.start_mission("C")
-                        asyncio.create_task(announce(format_tts("العربة AGV 1 غادة دابا لمنطقة C.")))
+                        asyncio.create_task(announce(format_tts("AGV 1 is now en route to zone C.")))
                     
                 # Mise à jour de la physique
                 agv1.update(dt, dummy_agv, TRAFFIC_CONTROLLER, GLOBAL_STATE["emergency_stop"], GLOBAL_STATE["blocked_edges"])
@@ -316,14 +313,14 @@ async def simulation_loop():
             # 1b. Check Zone X entry and blocked edges transitions
             in_zone_x = is_in_zone_x(agv1)
             if in_zone_x and not last_in_zone_x and not GLOBAL_STATE["paused"] and not GLOBAL_STATE["emergency_stop"]:
-                asyncio.create_task(announce(format_tts("رد البال، العربة دخلات لمنطقة التقاطع الخطيرة X.")))
+                asyncio.create_task(announce(format_tts("Warning, vehicle has entered the critical intersection zone X.")))
             last_in_zone_x = in_zone_x
             
             blocked_count = len(GLOBAL_STATE["blocked_edges"])
             if blocked_count > last_blocked_count and not GLOBAL_STATE["paused"] and not GLOBAL_STATE["emergency_stop"]:
                 if not _obstacle_announced:
                     # Only announce if the physical detector didn't already announce it
-                    asyncio.create_task(announce(format_tts("كاين طريق مقطوعة. جاري إعادة حساب مسار جديد باستعمال Dijkstra.")))
+                    asyncio.create_task(announce(format_tts("Route blocked. Recalculating alternative path using Dijkstra's algorithm.")))
             _obstacle_announced = False  # reset flag every tick
             last_blocked_count = blocked_count
             

@@ -11,9 +11,6 @@ const MQTT_CONTROL_TOPIC  = "robot/control";
 const MQTT_DISTANCE_TOPIC = "robot/distance";
 const MQTT_ANGLE_TOPIC    = "robot/angle";
 
-// ─── ONE-SHOT TURN COMMANDS ──────────────────────────────────────────────────
-const TURN_COMMANDS = new Set(["TURN_90_L", "TURN_90_R", "TURN_180"]);
-
 // ─── SPEED PRESETS ───────────────────────────────────────────────────────────
 const SPEED_PRESETS = [50, 100, 150, 200, 255];
 
@@ -32,10 +29,10 @@ const PHASE = {
 };
 
 const PHASE_LABELS = {
-  idle:           { text: 'Prêt', color: '#6b7280',  icon: '⏸' },
-  running_square: { text: 'جاري تنفيذ مسار المربع تلقائياً...', color: '#e67e22', icon: '🤖' },
-  done:           { text: '✅ تم إكمال المربع بنجاح والروبوت واقف!',    color: '#27ae60', icon: '🎯' },
-  aborted:        { text: '🛑 توقف اضطراري! تم إلغاء المسار التلقائي.', color: '#c0392b', icon: '✖' },
+  idle:           { text: 'Ready', color: '#6b7280',  icon: '⏸' },
+  running_square: { text: 'Executing automatic square mission...', color: '#e67e22', icon: '🤖' },
+  done:           { text: '✅ Square mission completed successfully. Robot stopped!',    color: '#27ae60', icon: '🎯' },
+  aborted:        { text: '🛑 Emergency Stop! Auto mission aborted.', color: '#c0392b', icon: '✖' },
 };
 
 export default function RobotController() {
@@ -43,7 +40,6 @@ export default function RobotController() {
   const [currentDistance, setDistance]  = useState(999.0);
   const [currentAngle, setAngle]        = useState(0.0);
   const [currentSpeed, setCurrentSpeed] = useState(100);
-  const [bypassObstacle, setBypass]     = useState(false);
   const [lastCommand, setLastCommand]   = useState("STOP");
   const [activeBtn, setActiveBtn]       = useState(null);
 
@@ -97,7 +93,7 @@ export default function RobotController() {
   // ── send_command (Python logic: only publish if changed) ─────────────────────
   const sendCommand = useCallback((cmd) => {
     if (!clientRef.current) return;
-    if (TURN_COMMANDS.has(cmd) || cmd !== lastCmdRef.current) {
+    if (cmd !== lastCmdRef.current) {
       clientRef.current.publish(MQTT_CONTROL_TOPIC, cmd);
       lastCmdRef.current = cmd;
       setLastCommand(cmd);
@@ -118,14 +114,6 @@ export default function RobotController() {
     clientRef.current?.publish(MQTT_CONTROL_TOPIC, `SPEED:${clamped}`);
   }, []);
 
-  const toggleBypass = useCallback(() => {
-    setBypass(prev => {
-      const next = !prev;
-      clientRef.current?.publish(MQTT_CONTROL_TOPIC, next ? "BYPASS:ON" : "BYPASS:OFF");
-      return next;
-    });
-  }, []);
-
   // ── Direction handlers ───────────────────────────────────────────────────────
   const onDirectionDown = useCallback((cmd) => {
     setActiveBtn(cmd); sendCommand(cmd);
@@ -134,11 +122,6 @@ export default function RobotController() {
   const onDirectionUp = useCallback(() => {
     setActiveBtn(null); sendCommand("STOP");
   }, [sendCommand]);
-
-  const onTurnClick = useCallback((cmd) => {
-    clientRef.current?.publish(MQTT_CONTROL_TOPIC, cmd);
-    lastCmdRef.current = cmd; setLastCommand(cmd);
-  }, []);
 
   // ── Keyboard (same as Python on_press/on_release) ────────────────────────────
   useEffect(() => {
@@ -154,10 +137,6 @@ export default function RobotController() {
           e.preventDefault(); onDirectionDown("LEFT");     setActiveBtn("LEFT");     break;
         case 'd': case 'D': case 'ArrowRight':
           e.preventDefault(); onDirectionDown("RIGHT");    setActiveBtn("RIGHT");    break;
-        case 'i': case 'I': onTurnClick("TURN_90_L"); break;
-        case 'o': case 'O': onTurnClick("TURN_90_R"); break;
-        case 'u': case 'U': onTurnClick("TURN_180");  break;
-        case 'b': case 'B': toggleBypass(); break;
         case '1': changeSpeed(50);  break;
         case '2': changeSpeed(100); break;
         case '3': changeSpeed(150); break;
@@ -179,7 +158,7 @@ export default function RobotController() {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup',   onKeyUp);
     };
-  }, [onDirectionDown, onTurnClick, toggleBypass, changeSpeed, sendCommand, currentSpeed]);
+  }, [onDirectionDown, changeSpeed, sendCommand, currentSpeed]);
 
   // ── AUTO MISSION ─────────────────────────────────────────────────────────────
   // Sequence:
@@ -192,7 +171,7 @@ export default function RobotController() {
   // ─────────────────────────────────────────────────────────────────────────────
   const runMission = useCallback(async () => {
     if (!clientRef.current || mqttStatus !== "CONNECTED") {
-      alert("❌ MQTT non connecté ! Attendez la connexion.");
+      alert("❌ MQTT not connected! Please wait.");
       return;
     }
     missionAbortRef.current = false;
@@ -260,11 +239,10 @@ export default function RobotController() {
 
   // ── UI helpers ───────────────────────────────────────────────────────────────
   const getDistanceInfo = () => {
-    if (bypassObstacle)         return { icon: '🛡️', color: '#f59e0b', label: 'BYPASSED' };
-    if (currentDistance >= 999) return { icon: '⚠️', color: '#9ca3af', label: 'Hors de portée' };
-    if (currentDistance <= 20)  return { icon: '🚨', color: '#ef4444', label: `${currentDistance.toFixed(1)} cm — TROP PROCHE!` };
-    if (currentDistance <= 50)  return { icon: '🟡', color: '#f59e0b', label: `${currentDistance.toFixed(1)} cm — Proche` };
-    return                             { icon: '🟢', color: '#10b981', label: `${currentDistance.toFixed(1)} cm — Libre` };
+    if (currentDistance >= 999) return { icon: '⚠️', color: '#9ca3af', label: 'Out of range' };
+    if (currentDistance <= 20)  return { icon: '🚨', color: '#ef4444', label: `${currentDistance.toFixed(1)} cm — TOO CLOSE!` };
+    if (currentDistance <= 50)  return { icon: '🟡', color: '#f59e0b', label: `${currentDistance.toFixed(1)} cm — Close` };
+    return                             { icon: '🟢', color: '#10b981', label: `${currentDistance.toFixed(1)} cm — Clear` };
   };
   const distInfo  = getDistanceInfo();
   const mqttColor = mqttStatus === "CONNECTED" ? '#10b981' : mqttStatus === "CONNECTING..." ? '#f59e0b' : '#ef4444';
@@ -350,7 +328,7 @@ export default function RobotController() {
         transition: 'all 0.3s ease',
       }}>
         <div style={{ fontSize: '11px', fontWeight: '800', letterSpacing: '0.08em', color: '#38bdf8', marginBottom: '10px' }}>
-          🤖 AUTO MISSION: مسار المربع التلقائي (Square Runner)
+          🤖 AUTO MISSION: Square Runner
         </div>
 
         {/* Mission status bar */}
@@ -390,7 +368,7 @@ export default function RobotController() {
         {/* Time configuration */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '9px', color: '#6b7280', fontWeight: '700', marginBottom: '4px' }}>⏱️ مدة تقدم الأمام (ثانية)</div>
+            <div style={{ fontSize: '9px', color: '#6b7280', fontWeight: '700', marginBottom: '4px' }}>⏱️ Forward Duration (sec)</div>
             <input
               type="number" min="0.5" max="30" step="0.5" value={timeToA}
               onChange={e => setTimeToA(parseFloat(e.target.value) || 3.0)}
@@ -407,7 +385,7 @@ export default function RobotController() {
             🔄
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '9px', color: '#6b7280', fontWeight: '700', marginBottom: '4px' }}>⏱️ مدة الدوران 90° (ثانية)</div>
+            <div style={{ fontSize: '9px', color: '#6b7280', fontWeight: '700', marginBottom: '4px' }}>⏱️ 90° Turn Duration (sec)</div>
             <input
               type="number" min="0.1" max="10" step="0.1" value={timeToB}
               onChange={e => setTimeToB(parseFloat(e.target.value) || 0.5)}
@@ -437,7 +415,7 @@ export default function RobotController() {
               boxShadow: !isMissionRunning && mqttStatus === "CONNECTED" ? '0 0 16px rgba(56,189,248,0.2)' : 'none',
             }}
           >
-            {isMissionRunning ? '⏳ Mission en cours…' : '▶ START MISSION'}
+            {isMissionRunning ? '⏳ Mission running…' : '▶ START MISSION'}
           </button>
           <button
             onClick={abortMission}
@@ -501,33 +479,7 @@ export default function RobotController() {
         </div>
       </div>
 
-      {/* ── Precision Gyro Turns ── */}
-      <div style={{ marginBottom: '14px' }}>
-        <div style={{ fontSize: '10px', color: '#6b7280', fontWeight: '700', letterSpacing: '0.08em', marginBottom: '7px' }}>
-          🔄 GYRO PRECISE TURNS — [i] [o] [u]
-        </div>
-        <div style={{ display: 'flex', gap: '6px' }}>
-          {[
-            { label: '↺ 90° L', cmd: 'TURN_90_L', key: 'i' },
-            { label: '↻↺ 180°', cmd: 'TURN_180',  key: 'u' },
-            { label: '↻ 90° R', cmd: 'TURN_90_R', key: 'o' },
-          ].map(({ label, cmd, key }) => (
-            <button key={cmd} onClick={() => !isMissionRunning && onTurnClick(cmd)}
-              style={{
-                flex: 1, padding: '10px 4px', borderRadius: '10px', fontSize: '12px',
-                fontWeight: '700', cursor: isMissionRunning ? 'not-allowed' : 'pointer',
-                border: '1px solid rgba(167,139,250,0.35)',
-                background: 'rgba(167,139,250,0.12)', color: '#a78bfa',
-                opacity: isMissionRunning ? 0.4 : 1, transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={e => { if (!isMissionRunning) e.currentTarget.style.background = 'rgba(167,139,250,0.28)'; }}
-              onMouseLeave={e => e.currentTarget.style.background = 'rgba(167,139,250,0.12)'}
-            >
-              {label}<div style={{ fontSize: '9px', opacity: 0.6, marginTop: '2px' }}>[{key}]</div>
-            </button>
-          ))}
-        </div>
-      </div>
+
 
       {/* ── Speed Control ── */}
       <div style={{ marginBottom: '14px' }}>
@@ -555,23 +507,13 @@ export default function RobotController() {
         </div>
       </div>
 
-      {/* ── Bypass Toggle ── */}
-      <button onClick={toggleBypass} style={{
-        width: '100%', padding: '10px', borderRadius: '10px', fontSize: '12px',
-        fontWeight: '700', cursor: 'pointer',
-        border: `1px solid ${bypassObstacle ? 'rgba(245,158,11,0.6)' : 'rgba(255,255,255,0.1)'}`,
-        background: bypassObstacle ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.04)',
-        color: bypassObstacle ? '#f59e0b' : '#9ca3af', transition: 'all 0.2s ease',
-        boxShadow: bypassObstacle ? '0 0 14px rgba(245,158,11,0.2)' : 'none',
-      }}>
-        🛡️ BYPASS SENSOR [b]: {bypassObstacle ? 'ON — Désactivé' : 'OFF — Actif'}
-      </button>
+
 
       {/* ── Keyboard hints ── */}
       <div style={{ marginTop: '12px', padding: '8px 10px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', fontSize: '9px', color: '#4b5563', lineHeight: '1.7' }}>
         <div style={{ color: '#6b7280', fontWeight: '700', marginBottom: '3px' }}>⌨️ KEYBOARD:</div>
         <div>↑/Z/W → FWD &nbsp;|&nbsp; ↓/S → BACK &nbsp;|&nbsp; ←/Q/A → LEFT &nbsp;|&nbsp; →/D → RIGHT</div>
-        <div>[i] 90°L &nbsp;|&nbsp; [o] 90°R &nbsp;|&nbsp; [u] 180° &nbsp;|&nbsp; [b] bypass &nbsp;|&nbsp; [1-5] vitesse</div>
+        <div>[1-5] speed presets</div>
       </div>
     </div>
   );

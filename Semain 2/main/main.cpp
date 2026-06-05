@@ -3,24 +3,26 @@
 #include <Arduino.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
-#include <WiFiClient.h> // --- TA'DIL: khdemna b WiFiClient standard (no SSL/TLS) ---
+#include <WiFiClientSecure.h> // Changed to WiFiClientSecure for HiveMQ Cloud
 #include <Wire.h>
 
 // --- Configuration Wi-Fi ---
 const char *ssid = "x";
 const char *password = "12345678900";
 
-// --- Configuration MQTT (Mosquitto Local Broker) ---
-const char *mqttHost = "192.168.137.1"; // IP address dyal local broker dyalk
-const int mqttPort = 1883;              // Port standard 1883
+// --- Configuration MQTT (HiveMQ Cloud) ---
+const char *mqttHost = "ac6ac8bb96e444b3b796a80e83455529.s1.eu.hivemq.cloud";
+const int mqttPort = 8883;
+const char *mqttUser = "hivemq.webclient.1775653497883";
+const char *mqttPass = "1B%.CwaP:Kdr2I93k*Ap";
 
 // MQTT Topics
 const char *mqttTopicControl = "robot/control";
 const char *mqttTopicDistance = "robot/distance";
 const char *mqttTopicAngle = "robot/angle";
+const char *mqttTopicTwin = "hafida/robot/twin/telemetry"; // For JSON telemetry
 
-WiFiClient espClient; // --- TA'DIL: standard WiFiClient (khfif w mzyan l
-                      // Mosquitto local) ---
+WiFiClientSecure espClient;
 PubSubClient client(espClient);
 
 // --- State Variables ---
@@ -394,12 +396,12 @@ void setup_wifi() {
 void reconnect() {
   while (!client.connected()) {
     String clientId = "ESP32Client-" + String(random(0, 0xffff), HEX);
-    // --- TA'DIL: Simple connect for local unauthenticated Mosquitto ---
-    if (client.connect(clientId.c_str())) {
+    Serial.println("Tentative de connexion MQTT...");
+    if (client.connect(clientId.c_str(), mqttUser, mqttPass)) {
       client.subscribe(mqttTopicControl);
-      Serial.println("[+] Connecté au broker local !");
+      Serial.println("[+] Connecté à HiveMQ Cloud !");
     } else {
-      Serial.print("[-] Erreur de connexion local. Code: ");
+      Serial.print("[-] Erreur de connexion MQTT. Code: ");
       Serial.println(client.state());
       delay(5000);
     }
@@ -444,8 +446,7 @@ void setup() {
   moveRobot("STOP");
   setup_wifi();
 
-  // --- TA'DIL: Sefesna l-SSL insecure setup hit khtamin b local client
-  // standard ---
+  espClient.setInsecure(); // Trust HiveMQ without certificate validation
   client.setServer(mqttHost, mqttPort);
   client.setCallback(callback);
   lastGyroTime = millis();
@@ -481,12 +482,23 @@ void loop() {
 
   if (now - lastMqttPublishTime >= MQTT_PUBLISH_INTERVAL) {
     if (client.connected()) {
+      // 1. Publish simple strings for the Frontend (Dashboard)
       String distStr = String(latestDistance, 1);
       client.publish(mqttTopicDistance, distStr.c_str());
       if (mpuFound) {
         String angleStr = String(yaw, 1);
         client.publish(mqttTopicAngle, angleStr.c_str());
       }
+
+      // 2. Publish JSON for the Backend (Digital Twin 3D)
+      String jsonPayload =
+          "{\"device\":\"hafida-smart-robot-safety-2\",\"distance\":" +
+          String(latestDistance, 1);
+      if (mpuFound) {
+        jsonPayload += ",\"yaw\":" + String(yaw, 1);
+      }
+      jsonPayload += "}";
+      client.publish(mqttTopicTwin, jsonPayload.c_str());
     }
     lastMqttPublishTime = now;
   }
