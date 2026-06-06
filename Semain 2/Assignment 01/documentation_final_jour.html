@@ -419,11 +419,11 @@
                 <div class="node-title">Embedded Edge Layer (ESP32 Microcontroller)</div>
                 <div class="node-desc">Reads HC-SR04 ultrasonic sensor and controls L298N motor driver.</div>
             </div>
-            <div class="arch-arrow">⇅ (SSL MQTT Port 8883 - Structured JSON Payloads)</div>
+            <div class="arch-arrow">⇅ (SSL MQTT Port 8883 / Local TCP Port 1883)</div>
             <div class="arch-node comm">
-                <div class="node-title">Communication Bridge (HiveMQ Cloud Broker)</div>
-                <div class="node-desc">Brokers telemetry topics ("hafida/robot/twin/telemetry") and command queues
-                    ("robot/control") over secure TLS.</div>
+                <div class="node-title">Communication Bridge (HiveMQ Cloud / Mosquitto Local)</div>
+                <div class="node-desc">Brokers telemetry topics ("robot/distance", "robot/angle") and command queues
+                    ("robot/control"). Supports both secure TLS Cloud and offline Local Network modes.</div>
             </div>
             <div class="arch-arrow">⇅ (Background Telemetry Queue Worker Threads)</div>
             <div class="arch-node backend">
@@ -433,13 +433,27 @@
             </div>
             <div class="arch-arrow">↓ (10Hz WebSocket JSON Broadcast + Base64 MP3 Speech Payloads)</div>
             <div class="arch-node frontend">
-                <div class="node-title">3D Presentation HUD (Vite + React + R3F)</div>
-                <div class="node-desc">Renders animated AGVs with rotating Ultrasonic Scanners and dynamic pointLights,
-                    displays glassmorphic controls, provides visual shake feedback for danger zones, and plays English
-                    voice announcements via Web Audio API.</div>
+                <div class="node-title">3D Presentation HUD (Vite + React + R3F / Python Tkinter)</div>
+                <div class="node-desc">Renders animated AGVs with rotating Scanners, or displays local Tkinter
+                    Dashboards for manual override. Plays voice announcements via Web Audio API.</div>
             </div>
         </div>
     </div>
+
+    <h2>2.1. Hybrid MQTT Strategy (Cloud & Local Fallback)</h2>
+    <p>
+        To ensure maximum resilience and adaptability, the communication bridge has been upgraded to support a
+        <strong>Dual-Broker Architecture (Optional)</strong>.
+        Depending on the deployment environment, operators can easily toggle between two modes:
+    </p>
+    <ul>
+        <li><strong>Cloud Mode (HiveMQ):</strong> Uses secure SSL/TLS (Port 8883) for remote, global SCADA monitoring
+            and digital twin synchronization. Ideal for high-level fleet management.</li>
+        <li><strong>Edge/Local Mode (Mosquitto):</strong> Uses a local standard TCP connection (Port 1883) without SSL
+            overhead. This provides ultra low-latency control and ensures the AGVs remain fully operational even if the
+            internet connection is completely severed. A dedicated Python Tkinter dashboard was developed specifically
+            for direct local manual overrides.</li>
+    </ul>
 
     <div class="page-break"></div>
 
@@ -516,7 +530,8 @@
             Microsoft Edge TTS (<code>en-US-JennyNeural</code> neural voice), encoded as Base64 MP3, and streamed
             through the WebSocket for browser playback. This replaces the unreliable browser-level
             <code>speechSynthesis</code> API, delivering consistent, high-quality and natural English speech for all
-            fleet events.</li>
+            fleet events.
+        </li>
         <li><strong>Danger Zone Visual Shake Feedback:</strong> A continuous full-screen shake animation triggers when
             the AGV enters the precise physical boundaries of the critical intersection (Zone X). This provides
             immediate visual warning, and instantly ceases the moment the vehicle clears the boundary.</li>
@@ -544,6 +559,28 @@
         of these maneuvers is dynamically visualized in the HUD via animated progress bars and countdown timers
         synchronized with the physical robot's movements.
     </p>
+    
+    <p style="margin-bottom: 5px;"><strong>Python Orchestration Logic:</strong></p>
+    <pre><code>def execute_square():
+    global is_square_running
+    is_square_running = True
+
+    for side in range(1, 5):
+        if not is_square_running: break
+        
+        # 1. Forward movement (using BACKWARD due to inverted edge logic)
+        send_command("BACKWARD")
+        time.sleep(time_forward)
+        
+        if not is_square_running: break
+        
+        # 2. Right 90° Turn (MPU6050 precise rotation)
+        send_command("RIGHT")
+        time.sleep(time_turn)
+
+    # Sequence complete
+    send_command("STOP")
+    is_square_running = False</code></pre>
 
     <div class="callout">
         <div class="callout-title">🎙️ English Voice Events Reference</div>
@@ -709,6 +746,23 @@
             </p>
         </div>
 
+    </div>
+
+    <h1>8. ABA Fusion Cloud Integration</h1>
+    <p>
+        To complete the Cyber-Physical Architecture, the system is fully integrated with the <strong>ABA Fusion Cloud Automation Platform</strong>. The node-based visual workflow (shown below) bridges the gap between manual remote operations and automated cloud logging.
+    </p>
+
+    <div class="gallery-item" style="border: 1px solid var(--border); border-radius: 12px; padding: 20px; background-color: var(--bg-light); margin-bottom: 30px;">
+        <h3 style="margin-top: 0; color: var(--primary);">Fusion MQTT Orchestration Flow</h3>
+        <img src="pictures/fusion_workflow.jpg" alt="ABA Fusion Workflow" style="width: 100%; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <p style="margin-top: 15px; font-size: 0.9em; color: var(--text-dark); line-height: 1.6;">
+            <strong>Workflow Analysis:</strong> This ABA Fusion automation pipeline serves a dual purpose:
+            <br><br>
+            <strong>1. Top Flow (Remote Dispatching):</strong> Features a "Manual Trigger" connected to a "Function" node and an "MQTT Publisher". When triggered, it securely publishes a JSON payload with the data <code>"START"</code> to the <code>robot/sim/trigger</code> topic. This acts as a cloud-based remote control mechanism to dispatch the AGV from anywhere.
+            <br><br>
+            <strong>2. Bottom Flow (Telemetry Monitoring):</strong> Features an "MQTT Subscriber" listening to the <code>robot/distance</code> topic. It captures real-time distance sensor readings (e.g., <code>72.9 cm</code>) sent by the ESP32. The subsequent "Log" node records these values in the cloud, forming the foundation for historical data analysis and predictive maintenance alerts.
+        </p>
     </div>
 
     <h1>9. Conclusion</h1>
